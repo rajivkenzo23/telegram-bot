@@ -1,0 +1,25 @@
+# Secrets — never push these
+.env
+
+# Dependencies — install fresh on panel
+node_modules/
+
+# Temp files
+temp/
+
+# Runtime data — never commit (channel IDs, user data, payment records)
+data/
+!data/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Build artifacts — never commit zips
+*.zip
+*.tar.gz
+temp_original_bot/
