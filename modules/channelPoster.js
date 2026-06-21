@@ -289,6 +289,6 @@ function escapeHtml(s) {
 
 module.exports = {
   postToFreeChannel,            // legacy single-channel API (kept for compatibility)
-  postToPremiumChannel,
+  postToPremiumChannelBatch,
   broadcastToFreeChannels
 };
