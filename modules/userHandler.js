@@ -378,7 +378,9 @@ async function deliverVideo(bot, chatId, userId, videoId, firstName, ref) {
     console.log(`📤 Delivering video ${videoId} to user ${userId}${ref ? ` (ref=${ref})` : ''}`);
     const video = getVideo(videoId);
 
-    if (!video || !video.fileId) {
+    const fileIds = video ? (video.fileIds || (video.fileId ? [video.fileId] : [])) : [];
+
+    if (!video || fileIds.length === 0) {
         await bot.sendMessage(chatId, formatMessage(config.messages.noVideo), {
             parse_mode: 'Markdown',
             reply_markup: { inline_keyboard: [[{ text: '🌐 Website', url: config.siteUrl }]] }
@@ -392,34 +394,44 @@ async function deliverVideo(bot, chatId, userId, videoId, firstName, ref) {
               `⭐ Want ads-free + new videos daily? /premium`
             : formatMessage(config.messages.videoSent);
 
-        await bot.sendVideo(chatId, video.fileId, {
-            caption: deliveryCaption,
-            parse_mode: 'Markdown',
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: '🔥 තව Videos බලන්න!', callback_data: 'browse_more' }],
-                    [{ text: '⭐ Premium (no ads)', callback_data: 'show_premium' }],
-                    [{ text: '📢 Free Channel', url: `https://t.me/${config.freeChannelUsername}` }]
-                ]
+        const inlineKeyboard = {
+            inline_keyboard: [
+                [{ text: '🔥 තව Videos බලන්න!', callback_data: 'browse_more' }],
+                [{ text: '⭐ Get Premium', callback_data: 'show_premium' }]
+            ]
+        };
+
+        if (fileIds.length === 1) {
+            await bot.sendVideo(chatId, fileIds[0], {
+                caption: deliveryCaption,
+                parse_mode: 'Markdown',
+                reply_markup: inlineKeyboard
+            });
+        } else {
+            // Split into chunks of 10
+            const chunks = [];
+            for (let i = 0; i < fileIds.length; i += 10) {
+                chunks.push(fileIds.slice(i, i + 10));
             }
-        });
+            
+            for (let i = 0; i < chunks.length; i++) {
+                const media = chunks[i].map(fid => ({ type: 'video', media: fid }));
+                await bot.sendMediaGroup(chatId, media);
+            }
+            
+            // Send caption and buttons in a separate message
+            await bot.sendMessage(chatId, deliveryCaption, {
+                parse_mode: 'Markdown',
+                reply_markup: inlineKeyboard
+            });
+        }
 
         recordDelivery(userId);
         recordRefDelivery(ref);
-        triggerRetentionLoop(bot, chatId, userId, video.title);
+        triggerRetentionLoop(bot, chatId, userId);
     } catch (error) {
-        console.error('❌ Error delivering video:', error.message);
-        try {
-            await bot.sendDocument(chatId, video.fileId, {
-                caption: formatMessage(config.messages.videoSent),
-                parse_mode: 'Markdown'
-            });
-            recordDelivery(userId);
-            recordRefDelivery(ref);
-            triggerRetentionLoop(bot, chatId, userId, video.title);
-        } catch (docError) {
-            await bot.sendMessage(chatId, `❌ Video send failed. Please try again later.`, { parse_mode: 'Markdown' });
-        }
+        console.error(`❌ Delivery failed:`, error.message);
+        await bot.sendMessage(chatId, `❌ Video send failed. Please try again later.`, { parse_mode: 'Markdown' });
     }
 }
 

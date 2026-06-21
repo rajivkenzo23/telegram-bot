@@ -25,43 +25,70 @@ function withRef(url, ref) {
 /* ============================================
    PREMIUM CHANNEL — full video, silent
    ============================================ */
-async function postToPremiumChannel(bot, fileId, caption) {
+async function postToPremiumChannelBatch(bot, videos, caption) {
   if (!config.premiumChannelId) {
     console.log('   ⚠️  PREMIUM_CHANNEL_ID not set — skipping premium post');
     return { success: false, skipped: true };
   }
 
-  console.log(`\n💎 Posting FULL video to premium channel`);
+  console.log(`\n💎 Posting FULL video batch to premium channel`);
 
-  const premiumCaption =
-    `🎬 *${escapeMd(caption)}*\n\n` +
-    `💎 VideoSLK Premium — full HD, no ads\n` +
-    `🆕 New videos every day`;
+  // Split into chunks of 10
+  const chunks = [];
+  for (let i = 0; i < videos.length; i += 10) {
+    chunks.push(videos.slice(i, i + 10));
+  }
 
-  try {
-    const result = await bot.sendVideo(config.premiumChannelId, fileId, {
-      caption: premiumCaption,
-      parse_mode: 'Markdown',
-      disable_notification: false,
-      supports_streaming: true
-    });
-    console.log(`   ✅ Premium channel posted! Msg ID: ${result.message_id}`);
-    return { success: true, messageId: result.message_id };
-  } catch (err) {
-    console.error(`   ❌ Premium post failed:`, err.message);
-    // Fallback to copyMessage-style document if sendVideo doesn't accept this fileId type
-    try {
-      const result = await bot.sendDocument(config.premiumChannelId, fileId, {
-        caption: premiumCaption,
+  let successCount = 0;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    
+    // Add part label if multiple chunks exist
+    let partLabel = chunks.length > 1 ? ` - Part ${i + 1}` : '';
+    if (chunks.length > 1 && i === chunks.length - 1) partLabel += ' (Final Part)';
+    
+    const premiumCaption = 
+      `🎬 *${escapeMd(caption)}${partLabel}*\n\n` +
+      `💎 VideoSLK Premium — full HD, no ads\n` +
+      `🆕 New videos every day`;
+
+    const media = chunk.map((v, index) => {
+      const obj = {
+        type: 'video',
+        media: v.fileId,
         parse_mode: 'Markdown'
-      });
-      console.log(`   ✅ Premium channel posted as document. Msg ID: ${result.message_id}`);
-      return { success: true, messageId: result.message_id };
-    } catch (e) {
-      console.error(`   ❌ Premium document post also failed:`, e.message);
-      return { success: false, error: e.message };
+      };
+      // Only the first item in the album gets the caption
+      if (index === 0) {
+        obj.caption = premiumCaption;
+      }
+      return obj;
+    });
+
+    try {
+      if (media.length === 1) {
+        await bot.sendVideo(config.premiumChannelId, media[0].media, {
+          caption: media[0].caption,
+          parse_mode: 'Markdown',
+          supports_streaming: true
+        });
+      } else {
+        await bot.sendMediaGroup(config.premiumChannelId, media);
+      }
+      console.log(`   ✅ Premium channel posted! Chunk ${i+1}/${chunks.length}`);
+      successCount++;
+    } catch (err) {
+      console.error(`   ❌ Premium post failed for chunk ${i+1}:`, err.message);
+    }
+
+    // Small delay between chunks to prevent flood
+    if (i < chunks.length - 1) {
+      await delay(2000);
     }
   }
+  
+  return { success: successCount === chunks.length, count: successCount };
 }
 
 /* ============================================
