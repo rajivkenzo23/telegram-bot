@@ -1,3 +1,7 @@
+const dns = require('dns');
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 const TelegramBot = require('node-telegram-bot-api');
 const { config, validateConfig } = require('./config');
 const { initAdminHandler } = require('./modules/adminHandler');
