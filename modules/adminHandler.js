@@ -211,12 +211,11 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
   const state = adminState[chatId];
   if (!state || state.step !== 'ready') return;
 
-  const caption = state.caption;
-  const slug = generateSlug(caption);
-  const description = generateDescription(caption);
-  const videoLink = `${config.siteUrl}/watch/${slug}.html`;
-  
-  const processingMsg = await bot.sendMessage(chatId, '⏳ *Processing Batch...*\n\n🖼 Starting...', { parse_mode: 'Markdown' });
+    const caption = state.caption;
+    const slug = generateSlug(caption);
+    const description = generateDescription(caption);
+    
+    const processingMsg = await bot.sendMessage(chatId, '⏳ *Processing Batch...*\n\n🚀 Starting...', { parse_mode: 'Markdown' });
 
   let localThumbPath = null;
   let localVideoPath = null;
@@ -277,36 +276,66 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
       localThumbPath = await createPlaceholderThumbFile(slug);
     }
 
-    // 4. Publish to Website
-    await updateMsg(bot, chatId, processingMsg.message_id, '⏳ *Step 4/6:* 🌐 Publishing watch page...');
+    const baseSlug = slug;
+
+    // Split state.videos into chunks of 10
+    const chunks = [];
+    for (let i = 0; i < state.videos.length; i += 10) {
+      chunks.push(state.videos.slice(i, i + 10));
+    }
+
     const duration = { duration: '0:00', durationISO: 'PT0S', durationSeconds: 0 };
-    await uploadToGithub(slug, caption, description, thumbnailBase64, thumbExtension, duration, { fileId: state.videos[0].fileId }, localPreviewPath);
+    let firstVideoLink = '';
 
-    // 5. Post to Free Channel
-    await updateMsg(bot, chatId, processingMsg.message_id, '⏳ *Step 5/6:* 📢 Posting preview to free channel...');
-    await postToFreeChannel(bot, localThumbPath, caption, videoLink, localPreviewPath);
+    for (let i = 0; i < chunks.length; i++) {
+      const isMultiPart = chunks.length > 1;
+      const partNum = i + 1;
+      const isFinal = (partNum === chunks.length);
+      
+      let chunkCaption = caption;
+      let chunkSlug = baseSlug;
 
-    // 6. Save Metadata
-    await updateMsg(bot, chatId, processingMsg.message_id, '⏳ *Step 6/6:* 💾 Saving metadata...');
-    const fileIds = state.videos.map(v => v.fileId);
-    const mediaFiles = state.videos.map(v => ({ fileId: v.fileId, type: v.type || 'video' }));
-    addVideo(slug, {
-      title: caption,
-      description,
-      slug,
-      fileIds,
-      mediaFiles,
-      duration: 'Batch',
-      link: videoLink
-    });
+      if (isMultiPart) {
+        chunkCaption += ` - Part ${partNum}`;
+        if (isFinal) chunkCaption += ' (Final Part)';
+        chunkSlug = `${baseSlug}-part-${partNum}`;
+      }
 
-    await bot.editMessageText(formatMessage(config.messages.success, { TITLE: caption, LINK: videoLink }), {
+      const description = generateDescription(chunkCaption);
+      const videoLink = `${config.siteUrl}/watch/${chunkSlug}.html`;
+      
+      if (i === 0) firstVideoLink = videoLink;
+
+      // 4. Publish to Website
+      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 🌐 Publishing watch page (Part ${partNum}/${chunks.length})...`);
+      await uploadToGithub(chunkSlug, chunkCaption, description, thumbnailBase64, thumbExtension, duration, { fileId: chunks[i][0].fileId }, localPreviewPath);
+
+      // 5. Post to Free Channel
+      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 5/6:* 📢 Posting to free channel (Part ${partNum}/${chunks.length})...`);
+      await postToFreeChannel(bot, localThumbPath, chunkCaption, videoLink, localPreviewPath);
+
+      // 6. Save Metadata
+      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 6/6:* 💾 Saving metadata (Part ${partNum}/${chunks.length})...`);
+      const fileIds = chunks[i].map(v => v.fileId);
+      const mediaFiles = chunks[i].map(v => ({ fileId: v.fileId, type: v.type || 'video' }));
+      addVideo(chunkSlug, {
+        title: chunkCaption,
+        description,
+        slug: chunkSlug,
+        fileIds,
+        mediaFiles,
+        duration: 'Batch',
+        link: videoLink
+      });
+    }
+
+    await bot.editMessageText(formatMessage(config.messages.success, { TITLE: caption, LINK: firstVideoLink }) + `\n\n*Total Parts Published:* ${chunks.length}`, {
       chat_id: chatId,
       message_id: processingMsg.message_id,
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🌐 View on Website', url: videoLink }],
+          [{ text: '🌐 View on Website', url: firstVideoLink }],
           [{ text: '🆓 Free Channel', url: `https://t.me/${config.freeChannelUsername}` }],
           [{ text: '💎 Premium Channel', url: config.premiumInviteLink }]
         ]
