@@ -378,9 +378,17 @@ async function deliverVideo(bot, chatId, userId, videoId, firstName, ref) {
     console.log(`📤 Delivering video ${videoId} to user ${userId}${ref ? ` (ref=${ref})` : ''}`);
     const video = getVideo(videoId);
 
-    const fileIds = video ? (video.fileIds || (video.fileId ? [video.fileId] : [])) : [];
+    let mediaFiles = [];
+    if (video) {
+        if (video.mediaFiles && video.mediaFiles.length > 0) {
+            mediaFiles = video.mediaFiles;
+        } else {
+            const fileIds = video.fileIds || (video.fileId ? [video.fileId] : []);
+            mediaFiles = fileIds.map(fid => ({ fileId: fid, type: 'video' }));
+        }
+    }
 
-    if (!video || fileIds.length === 0) {
+    if (!video || mediaFiles.length === 0) {
         await bot.sendMessage(chatId, formatMessage(config.messages.noVideo), {
             parse_mode: 'Markdown',
             reply_markup: { inline_keyboard: [[{ text: '🌐 Website', url: config.siteUrl }]] }
@@ -390,7 +398,7 @@ async function deliverVideo(bot, chatId, userId, videoId, firstName, ref) {
 
     try {
         const deliveryCaption = firstName
-            ? `🎬 *${firstName}, ඔබේ Video මෙන්න!*\n\n✅ Full video ඉහතින් බලන්න\n\n` +
+            ? `🔥 *${firstName}, ඔන්න ඔයාගෙ Video එක!*\n\n⚠️ Full video එක බැලුවට පස්සෙ යාලුවන්ටත් බලන්න Share කරන්න\n\n` +
               `⭐ Want ads-free + new videos daily? /premium`
             : formatMessage(config.messages.videoSent);
 
@@ -401,21 +409,29 @@ async function deliverVideo(bot, chatId, userId, videoId, firstName, ref) {
             ]
         };
 
-        if (fileIds.length === 1) {
-            await bot.sendVideo(chatId, fileIds[0], {
-                caption: deliveryCaption,
-                parse_mode: 'Markdown',
-                reply_markup: inlineKeyboard
-            });
+        if (mediaFiles.length === 1) {
+            if (mediaFiles[0].type === 'photo') {
+                await bot.sendPhoto(chatId, mediaFiles[0].fileId, {
+                    caption: deliveryCaption,
+                    parse_mode: 'Markdown',
+                    reply_markup: inlineKeyboard
+                });
+            } else {
+                await bot.sendVideo(chatId, mediaFiles[0].fileId, {
+                    caption: deliveryCaption,
+                    parse_mode: 'Markdown',
+                    reply_markup: inlineKeyboard
+                });
+            }
         } else {
             // Split into chunks of 10
             const chunks = [];
-            for (let i = 0; i < fileIds.length; i += 10) {
-                chunks.push(fileIds.slice(i, i + 10));
+            for (let i = 0; i < mediaFiles.length; i += 10) {
+                chunks.push(mediaFiles.slice(i, i + 10));
             }
             
             for (let i = 0; i < chunks.length; i++) {
-                const media = chunks[i].map(fid => ({ type: 'video', media: fid }));
+                const media = chunks[i].map(m => ({ type: m.type || 'video', media: m.fileId }));
                 await bot.sendMediaGroup(chatId, media);
             }
             

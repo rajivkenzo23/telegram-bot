@@ -55,7 +55,7 @@ async function postToPremiumChannelBatch(bot, videos, caption) {
 
     const media = chunk.map((v, index) => {
       const obj = {
-        type: 'video',
+        type: v.type || 'video',
         media: v.fileId,
         parse_mode: 'Markdown'
       };
@@ -68,11 +68,18 @@ async function postToPremiumChannelBatch(bot, videos, caption) {
 
     try {
       if (media.length === 1) {
-        await bot.sendVideo(config.premiumChannelId, media[0].media, {
-          caption: media[0].caption,
-          parse_mode: 'Markdown',
-          supports_streaming: true
-        });
+        if (media[0].type === 'photo') {
+          await bot.sendPhoto(config.premiumChannelId, media[0].media, {
+            caption: media[0].caption,
+            parse_mode: 'Markdown'
+          });
+        } else {
+          await bot.sendVideo(config.premiumChannelId, media[0].media, {
+            caption: media[0].caption,
+            parse_mode: 'Markdown',
+            supports_streaming: true
+          });
+        }
       } else {
         await bot.sendMediaGroup(config.premiumChannelId, media);
       }

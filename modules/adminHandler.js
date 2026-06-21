@@ -132,22 +132,30 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
     if (!state) return;
 
     if (state.step === 'collecting') {
-      let fileId, fileSize, thumbFileId, fileName;
+      let fileId, fileSize, thumbFileId, fileName, type;
       if (msg.video) {
         fileId = msg.video.file_id;
         fileSize = msg.video.file_size;
         thumbFileId = msg.video.thumb ? msg.video.thumb.file_id : null;
         fileName = msg.video.file_name || 'video.mp4';
+        type = 'video';
       } else if (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/')) {
         fileId = msg.document.file_id;
         fileSize = msg.document.file_size;
         thumbFileId = msg.document.thumb ? msg.document.thumb.file_id : null;
         fileName = msg.document.file_name || 'video.mp4';
+        type = 'video';
+      } else if (msg.photo) {
+        fileId = msg.photo[msg.photo.length - 1].file_id;
+        fileSize = msg.photo[msg.photo.length - 1].file_size;
+        thumbFileId = null;
+        fileName = 'photo.jpg';
+        type = 'photo';
       } else {
-        return; // ignore non-videos during collection
+        return; // ignore non-videos/photos during collection
       }
 
-      state.videos.push({ fileId, fileSize, thumbFileId, fileName });
+      state.videos.push({ fileId, fileSize, thumbFileId, fileName, type });
       
       // Update status message
       try {
@@ -281,11 +289,13 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
     // 6. Save Metadata
     await updateMsg(bot, chatId, processingMsg.message_id, '⏳ *Step 6/6:* 💾 Saving metadata...');
     const fileIds = state.videos.map(v => v.fileId);
+    const mediaFiles = state.videos.map(v => ({ fileId: v.fileId, type: v.type || 'video' }));
     addVideo(slug, {
       title: caption,
       description,
       slug,
       fileIds,
+      mediaFiles,
       duration: 'Batch',
       link: videoLink
     });
