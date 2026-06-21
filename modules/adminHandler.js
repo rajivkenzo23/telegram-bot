@@ -14,18 +14,23 @@ function isAdmin(userId) {
   return userId === config.adminId;
 }
 
+function sendMainKeyboard(bot, chatId, text = "👋 Welcome back, Admin. What would you like to do?") {
+  bot.sendMessage(chatId, text, {
+    reply_markup: {
+      keyboard: [
+        [{ text: '📤 Upload Files' }, { text: '📊 Stats' }]
+      ],
+      resize_keyboard: true
+    }
+  });
+}
+
 function initAdminHandler(bot, processVideo, uploadToGithub) {
   // Admin Start Keyboard
   bot.onText(/^\/start$/, async (msg) => {
     if (!isAdmin(msg.from.id)) return;
-    bot.sendMessage(msg.chat.id, "👋 Welcome back, Admin. What would you like to do?", {
-      reply_markup: {
-        keyboard: [
-          [{ text: '📤 Upload Files' }, { text: '📊 Stats' }]
-        ],
-        resize_keyboard: true
-      }
-    });
+    delete adminState[msg.chat.id];
+    sendMainKeyboard(bot, msg.chat.id);
   });
 
   bot.on('message', async (msg) => {
@@ -36,29 +41,82 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
     // Trigger Upload
     if (text === '📤 Upload Files' || text === '/upload') {
       adminState[chatId] = { step: 'collecting', videos: [], statusMsgId: null };
-      const m = await bot.sendMessage(chatId, "📥 Send me your videos (Batch supported). When you are finished, click 'Done Uploading'.", {
+      const m = await bot.sendMessage(chatId, "📥 Send me your videos (Batch supported).\nWhen you are finished, click 'Done Uploading'.", {
         reply_markup: {
-          inline_keyboard: [[{ text: '✅ Done Uploading', callback_data: 'batch_done' }], [{ text: '❌ Cancel', callback_data: 'cancel_upload' }]]
+          keyboard: [[{ text: '✅ Done Uploading' }], [{ text: '❌ Cancel' }]],
+          resize_keyboard: true
         }
       });
       adminState[chatId].statusMsgId = m.message_id;
       return;
     }
 
+    // Cancel Upload
+    if (text === '❌ Cancel') {
+      delete adminState[chatId];
+      sendMainKeyboard(bot, chatId, '❌ Upload cancelled.');
+      return;
+    }
+
     // Handle Text in states
     const state = adminState[chatId];
-    if (state && state.step === 'waiting_caption' && text && !text.startsWith('/')) {
-      state.caption = text;
-      state.step = 'waiting_preview_choice';
-      bot.sendMessage(chatId, `Caption set to: \n*${text}*\n\nNow, how should we handle the preview?`, {
-        parse_mode: 'Markdown',
+    if (!state) return;
+
+    if (text === '✅ Done Uploading') {
+      if (state.step !== 'collecting') return;
+      if (state.videos.length === 0) {
+        bot.sendMessage(chatId, "❌ You haven't sent any videos!");
+        return;
+      }
+      state.step = 'waiting_caption';
+      bot.sendMessage(chatId, `✅ Received ${state.videos.length} videos.\n\nNow, type a custom caption, or click Random.`, {
         reply_markup: {
-          inline_keyboard: [
-            [{ text: '🎬 Auto (Generate 5-8s clip from first video)', callback_data: 'batch_preview_auto' }],
-            [{ text: '🖼 Upload Custom Preview', callback_data: 'batch_preview_custom' }]
-          ]
+          keyboard: [[{ text: '🎲 Random Caption' }], [{ text: '❌ Cancel' }]],
+          resize_keyboard: true
         }
       });
+      return;
+    }
+
+    if (state.step === 'waiting_caption' && text && !text.startsWith('/')) {
+      if (text === '🎲 Random Caption') {
+        const hint = state.videos[0].fileName || '';
+        state.caption = generateCaption(hint);
+      } else {
+        state.caption = text;
+      }
+      state.step = 'waiting_preview_choice';
+      bot.sendMessage(chatId, `Caption set to: \n*${state.caption}*\n\nNow, how should we handle the preview?`, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          keyboard: [
+            [{ text: '🎬 Auto (Generate clip)' }],
+            [{ text: '🖼 Upload Custom Preview' }],
+            [{ text: '❌ Cancel' }]
+          ],
+          resize_keyboard: true
+        }
+      });
+      return;
+    }
+
+    if (state.step === 'waiting_preview_choice' && text && !text.startsWith('/')) {
+      if (text === '🎬 Auto (Generate clip)') {
+        state.previewType = 'auto';
+        state.step = 'ready';
+        bot.sendMessage(chatId, '✅ Auto preview selected. Starting process...', {
+          reply_markup: { remove_keyboard: true }
+        });
+        await processAdminBatch(bot, chatId, processVideo, uploadToGithub);
+      } else if (text === '🖼 Upload Custom Preview') {
+        state.step = 'waiting_custom_preview';
+        bot.sendMessage(chatId, '🖼 Please send the custom preview image or video now.', {
+          reply_markup: {
+            keyboard: [[{ text: '❌ Cancel' }]],
+            resize_keyboard: true
+          }
+        });
+      }
       return;
     }
   });
@@ -95,10 +153,7 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
       try {
         await bot.editMessageText(`📥 Collecting videos...\n✅ Received: ${state.videos.length} videos\n\nSend more or click 'Done Uploading'.`, {
           chat_id: chatId,
-          message_id: state.statusMsgId,
-          reply_markup: {
-            inline_keyboard: [[{ text: '✅ Done Uploading', callback_data: 'batch_done' }], [{ text: '❌ Cancel', callback_data: 'cancel_upload' }]]
-          }
+          message_id: state.statusMsgId
         });
       } catch(e) {}
     } else if (state.step === 'waiting_custom_preview') {
@@ -119,64 +174,12 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
       state.previewType = 'custom_' + previewType;
       state.customPreviewFileId = previewFileId;
       state.step = 'ready';
-      bot.sendMessage(chatId, "✅ Custom preview received. Starting process...");
+      bot.sendMessage(chatId, "✅ Custom preview received. Starting process...", {
+        reply_markup: { remove_keyboard: true }
+      });
       await processAdminBatch(bot, chatId, processVideo, uploadToGithub);
     }
   }
-
-  bot.on('callback_query', async (query) => {
-    if (!isAdmin(query.from.id)) return;
-    const chatId = query.message.chat.id;
-    const data = query.data;
-    const state = adminState[chatId];
-    await bot.answerCallbackQuery(query.id);
-
-    if (data === 'cancel_upload') {
-      delete adminState[chatId];
-      bot.editMessageText('❌ Upload cancelled.', { chat_id: chatId, message_id: query.message.message_id });
-      return;
-    }
-
-    if (!state) return;
-
-    if (data === 'batch_done') {
-      if (state.videos.length === 0) {
-        bot.sendMessage(chatId, "❌ You haven't sent any videos!");
-        return;
-      }
-      state.step = 'waiting_caption';
-      bot.editMessageText(`✅ Received ${state.videos.length} videos.\n\nNow, send me a custom caption, or click Random.`, {
-        chat_id: chatId,
-        message_id: query.message.message_id,
-        reply_markup: {
-          inline_keyboard: [[{ text: '🎲 Random Caption', callback_data: 'batch_caption_random' }], [{ text: '❌ Cancel', callback_data: 'cancel_upload' }]]
-        }
-      });
-    } else if (data === 'batch_caption_random') {
-      const hint = state.videos[0].fileName || '';
-      state.caption = generateCaption(hint);
-      state.step = 'waiting_preview_choice';
-      bot.editMessageText(`🎲 Generated Caption:\n*${state.caption}*\n\nNow, how should we handle the preview?`, {
-        chat_id: chatId,
-        message_id: query.message.message_id,
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🎬 Auto (Generate clip)', callback_data: 'batch_preview_auto' }],
-            [{ text: '🖼 Upload Custom Preview', callback_data: 'batch_preview_custom' }]
-          ]
-        }
-      });
-    } else if (data === 'batch_preview_auto') {
-      state.previewType = 'auto';
-      state.step = 'ready';
-      bot.editMessageText('✅ Auto preview selected. Starting process...', { chat_id: chatId, message_id: query.message.message_id });
-      await processAdminBatch(bot, chatId, processVideo, uploadToGithub);
-    } else if (data === 'batch_preview_custom') {
-      state.step = 'waiting_custom_preview';
-      bot.editMessageText('🖼 Please send the custom preview image or video now.', { chat_id: chatId, message_id: query.message.message_id });
-    }
-  });
 
   // Keep old stats and list handlers
   bot.onText(/^\/stats$|📊 Stats/, async (msg) => {
@@ -302,11 +305,13 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
 
     cleanupTempFiles(slug);
     delete adminState[chatId];
+    sendMainKeyboard(bot, chatId, "✅ Upload process finished successfully.");
     try { require('./statsPublisher').publishNow(); } catch (_) {}
   } catch (error) {
     bot.editMessageText(`❌ *Error:*\n${error.message}`, { chat_id: chatId, message_id: processingMsg.message_id, parse_mode: 'Markdown' });
     cleanupTempFiles(slug);
     delete adminState[chatId];
+    sendMainKeyboard(bot, chatId, "❌ Process failed.");
   }
 }
 
