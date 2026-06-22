@@ -100,7 +100,7 @@ function generateTagPage(tagKey, bucket) {
     }
   })}
   </script>
-  <meta name="theme-color" content="#FF0033">
+  <meta name="theme-color" content="#CC0000">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/icon-32.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -171,7 +171,7 @@ function generateTagIndexPage(idx) {
   const siteUrl = config.siteUrl;
   const items = Object.entries(idx)
     .sort((a, b) => b[1].videos.length - a[1].videos.length)
-    .map(([k, v]) => `<a href="/tag/${escHtml(k)}.html" class="tag-pill" style="display:inline-block;margin:5px;padding:8px 14px;background:linear-gradient(135deg,#FF0033,#FF6B00);color:#fff;border-radius:50px;text-decoration:none;font-weight:600;">#${escHtml(v.displayName)} (${v.videos.length})</a>`)
+    .map(([k, v]) => `<a href="/tag/${escHtml(k)}.html" class="tag-pill" style="display:inline-block;margin:5px;padding:8px 14px;background:linear-gradient(135deg,#CC0000,#FF6B00);color:#fff;border-radius:50px;text-decoration:none;font-weight:600;">#${escHtml(v.displayName)} (${v.videos.length})</a>`)
     .join('');
 
   return `<!DOCTYPE html>
@@ -182,7 +182,7 @@ function generateTagIndexPage(idx) {
   <title>Browse by Tag | VideoSLK</title>
   <meta name="description" content="Browse all video tags on VideoSLK — ${Object.keys(idx).length} categories of viral content.">
   <link rel="canonical" href="${siteUrl}/tag/">
-  <meta name="theme-color" content="#FF0033">
+  <meta name="theme-color" content="#CC0000">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
 </head>

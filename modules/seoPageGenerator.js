@@ -19,7 +19,7 @@ const TEMPLATE_CONFIG = {
         'https://omg10.com/4/10712300',
         'https://omg10.com/4/10695679'
     ],
-    themeColor: '#FF0033',
+    themeColor: '#CC0000',
     language: 'en',
     locale: 'en_US'
 };
@@ -313,7 +313,7 @@ function generateWatchPage(slug, video) {
   {"@context":"https://schema.org","@type":"VideoObject","name":"${escapeHtml(video.title)}","description":"${escapeHtml(video.description)}","thumbnailUrl":"https://videoslk.eu.cc/${video.thumbnail || ''}","contentUrl":"https://videoslk.eu.cc/${video.preview || ''}","uploadDate":"${video.date}","duration":"PT${video.durationISO || '0S'}","interactionStatistic":{"@type":"InteractionCounter","interactionType":{"@type":"WatchAction"},"userInteractionCount":${video.views || 0}},"publisher":{"@type":"Organization","name":"VideoSLK","url":"https://videoslk.eu.cc"}}
   </script>
 
-  <meta name="theme-color" content="#FF0033">
+  <meta name="theme-color" content="#CC0000">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/icon-32.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -333,19 +333,19 @@ function generateWatchPage(slug, video) {
     .preview-thumb-wrapper:hover .preview-thumb-img,.preview-thumb-wrapper:hover .preview-video{filter:brightness(0.55) blur(2px)}
     .preview-overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;z-index:2;pointer-events:none}
     .preview-overlay > *{pointer-events:auto}
-    .preview-lock{font-size:3.5rem;margin-bottom:10px;animation:lockBounce 2s ease infinite;filter:drop-shadow(0 0 20px rgba(255,0,51,0.5))}
+    .preview-lock{font-size:3.5rem;margin-bottom:10px;animation:lockBounce 2s ease infinite;filter:drop-shadow(0 0 20px rgba(204,0,0,0.5))}
     .preview-lock-text{font-size:1.1rem;font-weight:800;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,0.8)}
     .preview-lock-sub{font-size:0.85rem;color:rgba(255,255,255,0.92);margin-top:4px;text-shadow:0 2px 6px rgba(0,0,0,0.8)}
-    .preview-duration-badge{margin-top:12px;padding:6px 18px;background:rgba(255,0,51,0.22);border:1px solid rgba(255,0,51,0.45);border-radius:50px;font-size:0.8rem;color:#fff;font-weight:700;backdrop-filter:blur(5px)}
-    .preview-cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(255,0,51,0.5)}
+    .preview-duration-badge{margin-top:12px;padding:6px 18px;background:rgba(204,0,0,0.22);border:1px solid rgba(204,0,0,0.45);border-radius:50px;font-size:0.8rem;color:#fff;font-weight:700;backdrop-filter:blur(5px)}
+    .preview-cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(204,0,0,0.5)}
     .preview-gradient{position:absolute;bottom:0;left:0;width:100%;height:50%;background:linear-gradient(transparent,rgba(0,0,0,0.8));z-index:1;pointer-events:none}
     .no-thumb-bg{position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);z-index:0}
-    .no-thumb-bg::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:120px;height:120px;border:3px solid rgba(255,0,51,0.2);border-radius:50%;animation:pulse-ring 2s ease infinite}
+    .no-thumb-bg::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:120px;height:120px;border:3px solid rgba(204,0,0,0.2);border-radius:50%;animation:pulse-ring 2s ease infinite}
     @keyframes pulse-ring{0%{transform:translate(-50%,-50%) scale(0.8);opacity:1}100%{transform:translate(-50%,-50%) scale(1.5);opacity:0}}
 
     .vslk-sticky-unlock{display:none}
     @media (max-width:720px){
-      .vslk-sticky-unlock{display:flex;position:fixed;left:12px;right:12px;bottom:12px;z-index:90;background:linear-gradient(135deg,#FF0033,#FF6B00);color:#fff;border:0;padding:14px 18px;border-radius:50px;font-weight:800;font-size:0.98rem;justify-content:center;align-items:center;gap:6px;box-shadow:0 14px 36px rgba(255,0,51,0.45);cursor:pointer;animation:cta-pulse 2.6s ease infinite}
+      .vslk-sticky-unlock{display:flex;position:fixed;left:12px;right:12px;bottom:12px;z-index:90;background:linear-gradient(135deg,#CC0000,#FF6B00);color:#fff;border:0;padding:14px 18px;border-radius:50px;font-weight:800;font-size:0.98rem;justify-content:center;align-items:center;gap:6px;box-shadow:0 14px 36px rgba(204,0,0,0.45);cursor:pointer;animation:cta-pulse 2.6s ease infinite}
       .vslk-sticky-unlock.hide{display:none !important}
       @keyframes cta-pulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
       main{padding-bottom:80px}
@@ -394,7 +394,7 @@ function generateWatchPage(slug, video) {
             <div class="preview-lock-text">Full Video Locked</div>
             <div class="preview-lock-sub">සම්පූර්ණ Video එක Lock කරලා — පහත steps complete කරන්න</div>
             <div class="preview-duration-badge">⏱ ${video.duration || '0:00'} · ${formatViews(video.views || 0)} views</div>
-            <button type="button" class="preview-cta-btn" onclick="document.getElementById('unlock-section').scrollIntoView({behavior:'smooth',block:'start'})" style="margin-top:14px;background:linear-gradient(135deg,#FF0033,#FF6B00);color:#fff;border:0;padding:11px 24px;border-radius:50px;font-weight:800;font-size:0.95rem;cursor:pointer;box-shadow:0 8px 24px rgba(255,0,51,0.4);">🔓 Unlock Now — දැන්ම Unlock කරන්න ↓</button>
+            <button type="button" class="preview-cta-btn" onclick="document.getElementById('unlock-section').scrollIntoView({behavior:'smooth',block:'start'})" style="margin-top:14px;background:linear-gradient(135deg,#CC0000,#FF6B00);color:#fff;border:0;padding:11px 24px;border-radius:50px;font-weight:800;font-size:0.95rem;cursor:pointer;box-shadow:0 8px 24px rgba(204,0,0,0.4);">🔓 Unlock Now — දැන්ම Unlock කරන්න ↓</button>
           </div>
         </div>
 
@@ -444,11 +444,11 @@ function generateWatchPage(slug, video) {
           <p>${escapeHtml(video.description)}</p>
         </div>
 
-        <div class="premium-cta animate-on-scroll" style="background:linear-gradient(135deg,#FF0033 0%,#FF6B00 100%);border-radius:var(--radius-lg);padding:20px;margin:18px 0;text-align:center;color:#fff;">
+        <div class="premium-cta animate-on-scroll" style="background:linear-gradient(135deg,#CC0000 0%,#FF6B00 100%);border-radius:var(--radius-lg);padding:20px;margin:18px 0;text-align:center;color:#fff;">
           <h2 style="margin:0 0 4px;font-size:1.3rem;font-weight:900;">⭐ Skip the Ads — Go Premium</h2>
           <p style="margin:0 0 4px;opacity:0.95;font-size:0.92rem;font-weight:600;">⭐ Ads නැතුවම බලන්න — Premium වෙන්න</p>
           <p style="margin:0 0 12px;opacity:0.95;font-size:0.88rem;">Full HD · Uncut · NEW videos daily · දිනපතා නව videos · One-time Telegram Stars payment</p>
-          <a href="https://t.me/ukussa_69_bot?start=premium" target="_blank" rel="noopener" class="btn" style="background:#fff;color:#FF0033;font-weight:800;padding:10px 22px;border-radius:50px;text-decoration:none;display:inline-block;">💎 Get Premium · Premium ගන්න</a>
+          <a href="https://t.me/ukussa_69_bot?start=premium" target="_blank" rel="noopener" class="btn" style="background:#fff;color:#CC0000;font-weight:800;padding:10px 22px;border-radius:50px;text-decoration:none;display:inline-block;">💎 Get Premium · Premium ගන්න</a>
         </div>
 
         <div class="telegram-cta animate-on-scroll">
