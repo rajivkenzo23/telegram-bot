@@ -366,10 +366,16 @@ function downloadTelegramThumbnail(bot, thumbFileId, slug) {
       const writer = fs.createWriteStream(localPath);
       const protocol = downloadUrl.startsWith('https') ? https : http;
       protocol.get(downloadUrl, (response) => {
+        if (response.statusCode !== 200) {
+          writer.destroy();
+          try { fs.unlinkSync(localPath); } catch (_) {}
+          return reject(new Error(`HTTP ${response.statusCode} from Telegram CDN`));
+        }
         response.pipe(writer);
-        response.on('end', () => {
+        writer.on('finish', () => {
           resolve({ base64: fs.readFileSync(localPath).toString('base64'), extension, localPath });
         });
+        writer.on('error', reject);
       });
     } catch (err) { reject(err); }
   });

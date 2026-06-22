@@ -34,7 +34,7 @@ function githubRequest(method, endpoint, data) {
         try {
           const p = rd ? JSON.parse(rd) : {};
           if (res.statusCode >= 200 && res.statusCode < 300) resolve(p);
-          else if (res.statusCode === 409 || res.statusCode === 422) resolve({ conflict: true });
+          else if (res.statusCode === 409) resolve({ conflict: true });
           else reject(new Error(`GitHub ${res.statusCode}: ${p.message || 'error'}`));
         } catch (e) {
           if (res.statusCode >= 200 && res.statusCode < 300) resolve({});
