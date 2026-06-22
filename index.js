@@ -1,3 +1,4 @@
+process.env.NTBA_FIX_350 = '1';
 const dns = require('dns');
 if (typeof dns.setDefaultResultOrder === 'function') {
   dns.setDefaultResultOrder('ipv4first');
