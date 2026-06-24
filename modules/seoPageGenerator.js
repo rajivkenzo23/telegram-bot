@@ -322,7 +322,8 @@ function generateWatchPage(slug, video) {
   <link rel="dns-prefetch" href="https://quge5.com">
   <link rel="dns-prefetch" href="https://omg10.com">
   <link rel="preconnect" href="https://t.me">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/css/style.css?v=13">
   <!-- Adblock detector -->
   <script src="/js/adblock.js?v=10"></script>
@@ -361,22 +362,22 @@ function generateWatchPage(slug, video) {
   <canvas id="confetti-canvas"></canvas>
   <header class="header">
     <div class="header-inner">
-      <a href="/" class="logo"><div class="logo-icon">▶</div><div class="logo-text">VIDEO<span>SLK</span></div></a>
+      <a href="/" class="logo"><div class="logo-icon"><i class="fa-solid fa-play"></i></div><div class="logo-text">VIDEO<span>SLK</span></div></a>
       <nav class="nav-links">
-        <a href="/" class="nav-link">🏠 Home</a>
-        <a href="/trending.html" class="nav-link">🔥 Trending</a>
-        <a href="/latest.html" class="nav-link">🆕 Latest</a>
-        <a href="/viral.html" class="nav-link">⚡ Viral</a>
-        <a href="https://t.me/ukussa69new" target="_blank" rel="noopener" class="nav-link nav-telegram">📢 Telegram</a>
+        <a href="/" class="nav-link"><i class="fa-solid fa-house"></i> Home</a>
+        <a href="/trending.html" class="nav-link"><i class="fa-solid fa-fire"></i> Trending</a>
+        <a href="/latest.html" class="nav-link"><i class="fa-solid fa-clock"></i> Latest</a>
+        <a href="/viral.html" class="nav-link"><i class="fa-solid fa-bolt"></i> Viral</a>
+        <a href="https://t.me/ukussa69new" target="_blank" rel="noopener" class="nav-link nav-telegram"><i class="fa-brands fa-telegram"></i> Telegram</a>
       </nav>
       <div style="display:flex;align-items:center;gap:8px;">
-        <button class="search-toggle-btn" aria-label="Search">🔍</button>
+        <button class="search-toggle-btn" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
         <button class="mobile-menu-btn" aria-label="Menu"><span></span><span></span><span></span></button>
       </div>
     </div>
   </header>
   <div class="search-overlay">
-    <div class="search-header"><span class="search-icon">🔍</span><input type="search" id="search-input" class="search-input" placeholder="Search videos..." autocomplete="off"><button class="search-close-btn">✕</button></div>
+    <div class="search-header"><span class="search-icon"><i class="fa-solid fa-magnifying-glass"></i></span><input type="search" id="search-input" class="search-input" placeholder="Search videos..." autocomplete="off"><button class="search-close-btn">✕</button></div>
     <div class="search-results-container" id="search-results"></div>
   </div>
   <main class="main">
@@ -386,23 +387,23 @@ function generateWatchPage(slug, video) {
 
         <!-- AUTOPLAY PREVIEW (muted loop) + title + UNLOCK above the fold -->
         <div class="preview-thumb-wrapper animate-on-scroll" id="preview-wrapper">
-          <span class="preview-badge">⚡ PREVIEW</span>
+          <span class="preview-badge"><i class="fa-solid fa-bolt"></i> PREVIEW</span>
           <video class="preview-video" src="/${video.preview || ''}" autoplay muted loop playsinline poster="/${video.thumbnail || ''}" preload="auto"></video>
           <div class="preview-gradient"></div>
           <div class="preview-overlay">
-            <div class="preview-lock">🔒</div>
+            <div class="preview-lock"><i class="fa-solid fa-lock"></i></div>
             <div class="preview-lock-text">Full Video Locked</div>
             <div class="preview-lock-sub">සම්පූර්ණ Video එක Lock කරලා — පහත steps complete කරන්න</div>
-            <div class="preview-duration-badge">⏱ ${video.duration || '0:00'} · ${formatViews(video.views || 0)} views</div>
-            <button type="button" class="preview-cta-btn" onclick="document.getElementById('unlock-section').scrollIntoView({behavior:'smooth',block:'start'})" style="margin-top:14px;background:linear-gradient(135deg,#CC0000,#FF6B00);color:#fff;border:0;padding:11px 24px;border-radius:50px;font-weight:800;font-size:0.95rem;cursor:pointer;box-shadow:0 8px 24px rgba(204,0,0,0.4);">🔓 Unlock Now — දැන්ම Unlock කරන්න ↓</button>
+            <div class="preview-duration-badge"><i class="fa-solid fa-clock"></i> ${video.duration || '0:00'} · ${formatViews(video.views || 0)} views</div>
+            <button type="button" class="preview-cta-btn" onclick="document.getElementById('unlock-section').scrollIntoView({behavior:'smooth',block:'start'})" style="margin-top:14px;background:linear-gradient(135deg,#CC0000,#FF6B00);color:#fff;border:0;padding:11px 24px;border-radius:50px;font-weight:800;font-size:0.95rem;cursor:pointer;box-shadow:0 8px 24px rgba(204,0,0,0.4);"><i class="fa-solid fa-lock-open"></i> Unlock Now — දැන්ම Unlock කරන්න <i class="fa-solid fa-arrow-down"></i></button>
           </div>
         </div>
 
         <h1 class="video-title" style="margin:16px 0 6px;font-size:1.5rem;font-weight:900;line-height:1.25;">${escapeHtml(video.title)}</h1>
-        <div class="video-meta" style="display:flex;gap:14px;flex-wrap:wrap;color:var(--text-muted);font-size:0.85rem;margin-bottom:10px;">
-          <span>👁 ${formatViews(video.views || 0)} views</span>
-          <span>📅 ${video.date}</span>
-          <span>⏱ ${video.duration || '0:00'}</span>
+        <div class="video-meta" style="display:flex;gap:14px;flex-wrap:wrap;color:var(--text-muted);font-size:0.85rem;margin-bottom:10px;font-family:'JetBrains Mono',monospace;">
+          <span><i class="fa-solid fa-eye"></i> ${formatViews(video.views || 0)} views</span>
+          <span><i class="fa-solid fa-calendar"></i> ${video.date}</span>
+          <span><i class="fa-solid fa-clock"></i> ${video.duration || '0:00'}</span>
         </div>
 
         <!-- ===== UNLOCK SECTION ===== -->
@@ -411,10 +412,10 @@ function generateWatchPage(slug, video) {
             <div class="verification-progress-fill" id="verification-progress-fill"></div>
           </div>
           <div class="verification-file-info">
-            <div class="file-icon" id="file-info-icon">🎥</div>
+            <div class="file-icon" id="file-info-icon"><i class="fa-solid fa-video"></i></div>
             <div class="file-details">
               <div class="file-name" id="file-info-name">${escapeHtml(video.title)}</div>
-              <div class="file-meta" id="file-info-meta">${formatViews(video.views || 0)} views · ${video.duration || '0:00'}</div>
+              <div class="file-meta" id="file-info-meta" style="font-family:'JetBrains Mono',monospace;">${formatViews(video.views || 0)} views · ${video.duration || '0:00'}</div>
             </div>
           </div>
           <div class="verification-status-box" id="verification-status-box">
@@ -434,10 +435,10 @@ function generateWatchPage(slug, video) {
         </div>
         <div class="share-section" style="display:flex;align-items:center;gap:10px;margin:14px 0;">
           <span class="share-label">Share · බෙදන්න:</span>
-          <a href="https://wa.me/?text=${encodedUrl}" target="_blank" rel="noopener" class="share-btn" title="WhatsApp">💬</a>
-          <a href="https://t.me/share/url?url=${encodedUrl}" target="_blank" rel="noopener" class="share-btn" title="Telegram">✈️</a>
-          <a href="https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}" target="_blank" rel="noopener" class="share-btn" title="Facebook">📘</a>
-          <button class="share-btn" title="Copy link" onclick="navigator.clipboard.writeText(window.location.href);this.textContent='✅';setTimeout(()=>this.textContent='🔗',2000)">🔗</button>
+          <a href="https://wa.me/?text=${encodedUrl}" target="_blank" rel="noopener" class="share-btn" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
+          <a href="https://t.me/share/url?url=${encodedUrl}" target="_blank" rel="noopener" class="share-btn" title="Telegram"><i class="fa-brands fa-telegram"></i></a>
+          <a href="https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}" target="_blank" rel="noopener" class="share-btn" title="Facebook"><i class="fa-brands fa-facebook"></i></a>
+          <button class="share-btn" title="Copy link" onclick="navigator.clipboard.writeText(window.location.href);this.innerHTML='<i class=\'fa-solid fa-check\'></i>';setTimeout(()=>this.innerHTML='<i class=\'fa-solid fa-link\'></i>',2000)"><i class="fa-solid fa-link"></i></button>
         </div>
 
         <div class="video-description animate-on-scroll" style="margin-top:12px;">
@@ -445,16 +446,16 @@ function generateWatchPage(slug, video) {
         </div>
 
         <div class="premium-cta animate-on-scroll" style="background:linear-gradient(135deg,#CC0000 0%,#FF6B00 100%);border-radius:var(--radius-lg);padding:20px;margin:18px 0;text-align:center;color:#fff;">
-          <h2 style="margin:0 0 4px;font-size:1.3rem;font-weight:900;">⭐ Skip the Ads — Go Premium</h2>
-          <p style="margin:0 0 4px;opacity:0.95;font-size:0.92rem;font-weight:600;">⭐ Ads නැතුවම බලන්න — Premium වෙන්න</p>
+          <h2 style="margin:0 0 4px;font-size:1.3rem;font-weight:900;"><i class="fa-solid fa-crown" style="color:#FFD700;"></i> Skip the Ads — Go Premium</h2>
+          <p style="margin:0 0 4px;opacity:0.95;font-size:0.92rem;font-weight:600;"><i class="fa-solid fa-crown"></i> Ads නැතුවම බලන්න — Premium වෙන්න</p>
           <p style="margin:0 0 12px;opacity:0.95;font-size:0.88rem;">Full HD · Uncut · NEW videos daily · දිනපතා නව videos · One-time Telegram Stars payment</p>
-          <a href="https://t.me/ukussa_69_bot?start=premium" target="_blank" rel="noopener" class="btn" style="background:#fff;color:#CC0000;font-weight:800;padding:10px 22px;border-radius:50px;text-decoration:none;display:inline-block;">💎 Get Premium · Premium ගන්න</a>
+          <a href="https://t.me/ukussa_69_bot?start=premium" target="_blank" rel="noopener" class="btn" style="background:#fff;color:#CC0000;font-weight:800;padding:10px 22px;border-radius:50px;text-decoration:none;display:inline-block;"><i class="fa-solid fa-gem"></i> Get Premium · Premium ගන්න</a>
         </div>
 
         <div class="telegram-cta animate-on-scroll">
-          <h2 class="telegram-cta-title">📢 Free Channel · නොමිලේ Channel එක</h2>
+          <h2 class="telegram-cta-title"><i class="fa-solid fa-bullhorn"></i> Free Channel · නොමිලේ Channel එක</h2>
           <p class="telegram-cta-desc">නව videos පළමුව දැනගන්න! · Be first to see new previews 🔥</p>
-          <a href="https://t.me/ukussafree69" target="_blank" rel="noopener" class="btn btn-primary">🚀 Join @ukussafree69</a>
+          <a href="https://t.me/ukussafree69" target="_blank" rel="noopener" class="btn btn-primary"><i class="fa-brands fa-telegram"></i> Join @ukussafree69</a>
         </div>
       </div>
       <section class="related-section"><div class="section-header animate-on-scroll"><h2 class="section-title"><span class="icon">🔥</span> More Videos</h2><a href="/" class="section-link">Browse All →</a></div><div class="video-grid animate-on-scroll" id="related-grid"></div></section>
@@ -467,7 +468,7 @@ function generateWatchPage(slug, video) {
   <!-- Mobile-only floating "Unlock Now" CTA -->
   <button class="vslk-sticky-unlock" id="vslk-sticky-unlock" type="button"
           onclick="document.getElementById('unlock-section').scrollIntoView({behavior:'smooth',block:'start'})">
-    🔓 Unlock Now · දැන්ම Unlock කරන්න
+    <i class="fa-solid fa-lock-open"></i> Unlock Now · දැන්ම Unlock කරන්න
   </button>
   <script>
     (function(){
