@@ -18,7 +18,8 @@ function sendMainKeyboard(bot, chatId, text = "👋 Welcome back, Admin. What wo
   bot.sendMessage(chatId, text, {
     reply_markup: {
       keyboard: [
-        [{ text: '📤 Upload Files' }, { text: '📊 Stats' }]
+        [{ text: '📤 Upload Files' }, { text: '📊 Stats' }],
+        [{ text: '🔧 Fix Thumbnails' }]
       ],
       resize_keyboard: true
     }
@@ -55,6 +56,61 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
     if (text === '❌ Cancel') {
       delete adminState[chatId];
       sendMainKeyboard(bot, chatId, '❌ Upload cancelled.');
+      return;
+    }
+
+    // Fix Thumbnails
+    if (text === '🔧 Fix Thumbnails' || text === '/fix_thumbs') {
+      if (adminState[chatId]) {
+        bot.sendMessage(chatId, "⚠️ Another action is in progress. Please cancel or finish it first.");
+        return;
+      }
+      adminState[chatId] = { step: 'fixing_thumbnails' };
+      
+      try {
+        const { fixThumbnails } = require('../scripts/fixThumbnails');
+        
+        let logBuffer = [];
+        let lastUpdate = 0;
+        let statusMsg = await bot.sendMessage(chatId, "⏳ *Starting thumbnail repair process...*", { parse_mode: 'Markdown' });
+        
+        const logCallback = async (message) => {
+          logBuffer.push(message);
+          
+          const now = Date.now();
+          // Update the Telegram message every 3 seconds to avoid rate limits
+          if (now - lastUpdate > 3000) {
+            lastUpdate = now;
+            try {
+              // Show last 12 lines of logs to keep within message length limits
+              const snippet = logBuffer.slice(-12).join('\n');
+              await bot.editMessageText(`🔧 *Fixing Thumbnails:*\n\n\`\`\`\n${snippet}\n\`\`\``, {
+                chat_id: chatId,
+                message_id: statusMsg.message_id,
+                parse_mode: 'Markdown'
+              });
+            } catch (e) {
+              console.error('Failed to edit status message:', e.message);
+            }
+          }
+        };
+        
+        await fixThumbnails(bot, logCallback);
+        
+        // Final update with complete summary
+        const finalLogs = logBuffer.slice(-15).join('\n');
+        await bot.editMessageText(`✅ *Thumbnail fix complete!*\n\n\`\`\`\n${finalLogs}\n\`\`\``, {
+          chat_id: chatId,
+          message_id: statusMsg.message_id,
+          parse_mode: 'Markdown'
+        });
+        
+      } catch (err) {
+        bot.sendMessage(chatId, `❌ *Failed to fix thumbnails:*\n${err.message}`, { parse_mode: 'Markdown' });
+      } finally {
+        delete adminState[chatId];
+        sendMainKeyboard(bot, chatId, "✅ Finished thumbnail repair.");
+      }
       return;
     }
 

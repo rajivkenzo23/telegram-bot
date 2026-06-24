@@ -91,17 +91,20 @@ function downloadFile(url, destPath) {
     });
 }
 
-async function run() {
-    console.log('🌐 Fetching latest videos database from GitHub...');
+async function run(botInstance, logCallback) {
+    const activeBot = botInstance || bot;
+    const log = logCallback || console.log;
+
+    log('🌐 Fetching latest videos database from GitHub...');
     const videosData = await fetchExistingVideos();
     const videos = Object.values(videosData);
     
     if (videos.length === 0) {
-        console.log('❌ No videos found in database or failed to fetch videos.js');
+        log('❌ No videos found in database or failed to fetch videos.js');
         return;
     }
 
-    console.log(`📊 Found ${videos.length} videos in registry. Checking thumbnails...`);
+    log(`📊 Found ${videos.length} videos in registry. Checking thumbnails...`);
     let fixedCount = 0;
     let failCount = 0;
 
@@ -117,21 +120,20 @@ async function run() {
         const isMissing = metadata.statusCode === 404;
 
         if (isPlaceholder || isMissing) {
-            console.log(`\n🔍 [NEED FIX] "${video.title}"`);
-            console.log(`   Status: ${isPlaceholder ? 'Placeholder detected (161 bytes)' : 'Missing from repository (404)'}`);
+            log(`🔍 [NEED FIX] "${video.title}"`);
             
             if (!video.telegramFileId) {
-                console.log('   ⚠️ Cannot fix: No telegramFileId associated with this video.');
+                log('   ⚠️ Cannot fix: No telegramFileId associated with this video.');
                 continue;
             }
 
             try {
-                console.log('   ⏳ Fetching file details from Telegram...');
-                const file = await bot.getFile(video.telegramFileId);
+                log('   ⏳ Fetching file details from Telegram...');
+                const file = await activeBot.getFile(video.telegramFileId);
                 
                 // Bot API limits download to 20MB
                 if (file.file_size && file.file_size > 20 * 1024 * 1024) {
-                    console.log(`   ⚠️ Cannot fix: Video size (${(file.file_size / 1024 / 1024).toFixed(1)}MB) exceeds Telegram Bot API download limit of 20MB.`);
+                    log(`   ⚠️ Cannot fix: Video size (${(file.file_size / 1024 / 1024).toFixed(1)}MB) exceeds Telegram Bot API download limit of 20MB.`);
                     failCount++;
                     continue;
                 }
@@ -140,15 +142,15 @@ async function run() {
                 const localVideoPath = path.join(tempDir, `${video.id}_temp.mp4`);
                 const localThumbPath = path.join(tempDir, `${video.id}_thumb.jpg`);
 
-                console.log('   ⏳ Downloading video file from Telegram...');
+                log('   ⏳ Downloading video file from Telegram...');
                 await downloadFile(downloadUrl, localVideoPath);
 
-                console.log('   ⏳ Extracting real thumbnail frame using FFmpeg...');
+                log('   ⏳ Extracting real thumbnail frame using FFmpeg...');
                 try {
                     // Extract frame at 2 seconds (or 0 if video is extremely short)
                     execSync(`"${ffmpegPath}" -y -i "${localVideoPath}" -ss 00:00:02 -vframes 1 "${localThumbPath}"`, { stdio: 'ignore' });
                 } catch (ffmpegErr) {
-                    console.log('      🔄 Extraction at 2s failed. Retrying at 0s...');
+                    log('      🔄 Extraction at 2s failed. Retrying at 0s...');
                     execSync(`"${ffmpegPath}" -y -i "${localVideoPath}" -ss 00:00:00 -vframes 1 "${localThumbPath}"`, { stdio: 'ignore' });
                 }
 
@@ -156,11 +158,11 @@ async function run() {
                     throw new Error('FFmpeg failed to output thumbnail image.');
                 }
 
-                console.log('   ⏳ Uploading new thumbnail to GitHub...');
+                log('   ⏳ Uploading new thumbnail to GitHub...');
                 const thumbnailBase64 = fs.readFileSync(localThumbPath).toString('base64');
                 await uploadFile(video.thumbnail, thumbnailBase64, `Fix thumb: ${video.id}`, true);
                 
-                console.log(`   ✅ Success! Thumbnail updated for: ${video.title}`);
+                log(`   ✅ Success! Thumbnail updated for: ${video.title}`);
                 fixedCount++;
 
                 // Cleanup local temp files
@@ -168,17 +170,21 @@ async function run() {
                 try { fs.unlinkSync(localThumbPath); } catch (_) {}
                 
             } catch (err) {
-                console.error(`   ❌ Failed to fix: ${err.message}`);
+                log(`   ❌ Failed to fix: ${err.message}`);
                 failCount++;
             }
         }
     }
 
-    console.log('\n==================================================');
-    console.log(`🎉 Process Finished!`);
-    console.log(`   Fixed: ${fixedCount}`);
-    console.log(`   Failed/Skipped: ${failCount}`);
-    console.log('==================================================');
+    log('\n==================================================');
+    log(`🎉 Process Finished!`);
+    log(`   Fixed: ${fixedCount}`);
+    log(`   Failed/Skipped: ${failCount}`);
+    log('==================================================');
 }
 
-run().catch(console.error);
+if (require.main === module) {
+    run().catch(console.error);
+}
+
+module.exports = { fixThumbnails: run };
