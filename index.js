@@ -103,7 +103,8 @@ async function postToFreeChannel(bot, localThumbPath, caption, videoLink, localP
   });
 }
 
-initAdminHandler(bot, null, uploadToGithub, postToFreeChannel);
+const { processVideo } = require('./modules/videoProcessor');
+initAdminHandler(bot, processVideo, uploadToGithub);
 initUserHandler(bot);
 
 try {
