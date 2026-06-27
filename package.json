@@ -14,8 +14,7 @@
         "telegram": "^2.22.2",
         "input": "^1.0.1",
         "form-data": "^4.0.1",
-        "axios": "^1.6.8",
-        "googleapis": "^140.0.1"
+        "axios": "^1.6.8"
     },
     "optionalDependencies": {
         "ffmpeg-static": "^5.2.0"
