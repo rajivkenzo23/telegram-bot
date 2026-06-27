@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const http = require('http');
+const axios = require('axios');
 const { config, formatMessage } = require('../config');
 const { generateCaption, generateSlug, generateDescription } = require('./captionGenerator');
 const { addVideo } = require('./dataManager');
@@ -211,7 +212,7 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
         return; // ignore non-videos/photos during collection
       }
 
-      state.videos.push({ fileId, fileSize, thumbFileId, fileName, type });
+      state.videos.push({ fileId, fileSize, thumbFileId, fileName, type, messageId: msg.message_id });
       
       // Update status message
       try {
@@ -237,6 +238,7 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
 
       state.previewType = 'custom_' + previewType;
       state.customPreviewFileId = previewFileId;
+      state.customPreviewMessageId = msg.message_id;
       state.step = 'ready';
       bot.sendMessage(chatId, "✅ Custom preview received. Starting process...", {
         reply_markup: { remove_keyboard: true }
@@ -267,11 +269,11 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
   const state = adminState[chatId];
   if (!state || state.step !== 'ready') return;
 
-    const caption = state.caption;
-    const slug = generateSlug(caption);
-    const description = generateDescription(caption);
-    
-    const processingMsg = await bot.sendMessage(chatId, '⏳ *Processing Batch...*\n\n🚀 Starting...', { parse_mode: 'Markdown' });
+  const caption = state.caption;
+  const slug = generateSlug(caption);
+  const description = generateDescription(caption);
+  
+  const processingMsg = await bot.sendMessage(chatId, '⏳ *Processing Batch...*\n\n🚀 Starting...', { parse_mode: 'Markdown' });
 
   let localThumbPath = null;
   let localVideoPath = null;
@@ -289,11 +291,12 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
     await updateMsg(bot, chatId, processingMsg.message_id, '⏳ *Step 2/6:* ⬇️ Downloading preview source...');
     
     let sourceFileId = state.previewType.startsWith('custom') ? state.customPreviewFileId : state.videos[0].fileId;
+    let sourceMsgId = state.previewType.startsWith('custom') ? state.customPreviewMessageId : state.videos[0].messageId;
     localVideoPath = path.join(tempDir, `${slug}_source`);
     
     let isDownloaded = false;
     try {
-      await downloadTelegramFile(bot, sourceFileId, localVideoPath);
+      await downloadTelegramFile(bot, sourceFileId, localVideoPath, chatId, sourceMsgId);
       isDownloaded = true;
     } catch (e) {
       console.log(`Failed to download preview source: ${e.message}`);
@@ -362,18 +365,40 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
       
       if (i === 0) firstVideoLink = videoLink;
 
-      // 4. Publish to Website
+      // 4. Publish to Website & Streamtape
       await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 🌐 Publishing watch page (Part ${partNum}/${chunks.length})...`);
-      await uploadToGithub(chunkSlug, chunkCaption, description, thumbnailBase64, thumbExtension, duration, { fileId: chunks[i][0].fileId }, localPreviewPath);
+      
+      // Download full video and upload to Streamtape for embed playing
+      let embedUrl = '';
+      const firstVideo = chunks[i][0];
+      const fullVideoPath = path.join(tempDir, `${chunkSlug}_full.mp4`);
+      
+      try {
+        await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* ⬇️ Downloading full video for Streamtape (Part ${partNum}/${chunks.length})...`);
+        await downloadTelegramFile(bot, firstVideo.fileId, fullVideoPath, chatId, firstVideo.messageId);
+        
+        await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 🎥 Uploading full video to Streamtape (Part ${partNum}/${chunks.length})...`);
+        const uploadRes = await uploadToStreamtape(fullVideoPath, firstVideo.fileName);
+        embedUrl = uploadRes.embedUrl;
+        
+        try { fs.unlinkSync(fullVideoPath); } catch (_) {}
+      } catch (uploadErr) {
+        console.error("⚠️ Streamtape upload failed:", uploadErr.message);
+        try { fs.unlinkSync(fullVideoPath); } catch (_) {}
+      }
+
+      await uploadToGithub(chunkSlug, chunkCaption, description, thumbnailBase64, thumbExtension, duration, { fileId: firstVideo.fileId, embedUrl }, localPreviewPath);
 
       // 5. Post to Free Channel
       await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 5/6:* 📢 Posting to free channel (Part ${partNum}/${chunks.length})...`);
       await postToFreeChannel(bot, localThumbPath, chunkCaption, videoLink, localPreviewPath);
 
-      // 6. Save Metadata
-      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 6/6:* 💾 Saving metadata (Part ${partNum}/${chunks.length})...`);
+      // 6. Save Metadata (Local JSON and Cloudflare D1)
+      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 6/6:* 💾 Saving metadata to D1 (Part ${partNum}/${chunks.length})...`);
       const fileIds = chunks[i].map(v => v.fileId);
       const mediaFiles = chunks[i].map(v => ({ fileId: v.fileId, type: v.type || 'video' }));
+      
+      // Local Store JSON
       addVideo(chunkSlug, {
         title: chunkCaption,
         description,
@@ -381,8 +406,42 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
         fileIds,
         mediaFiles,
         duration: 'Batch',
-        link: videoLink
+        link: videoLink,
+        embedUrl: embedUrl
       });
+
+      // Cloudflare D1 Database via Pages API
+      try {
+        const postPayload = {
+          id: chunkSlug,
+          title: chunkCaption,
+          description: description,
+          thumbnail: thumbnailBase64 ? `assets/thumbs/${chunkSlug}.${thumbExtension || 'jpg'}` : 'assets/thumbs/default-video.jpg',
+          preview: localPreviewPath ? `assets/previews/${chunkSlug}.mp4` : '',
+          duration: 'Batch',
+          views: 1500,
+          category: detectCategory(chunkCaption),
+          tags: ['entertainment', 'viral', 'trending'],
+          telegramFileId: firstVideo.fileId,
+          embedUrl: embedUrl,
+          date: new Date().toISOString().split('T')[0]
+        };
+
+        const d1Res = await axios.post(`${config.siteUrl}/api/admin/posts`, postPayload, {
+          headers: {
+            'Authorization': `Bearer ${config.githubToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!d1Res.data || !d1Res.data.ok) {
+          console.error("⚠️ Cloudflare D1 rejected metadata:", d1Res.data?.error || 'unknown');
+        } else {
+          console.log(`✅ Metadata successfully saved to Cloudflare D1 for ${chunkSlug}`);
+        }
+      } catch (d1Err) {
+        console.error("⚠️ Failed to sync metadata to Cloudflare D1:", d1Err.message);
+      }
     }
 
     await bot.editMessageText(formatMessage(config.messages.success, { TITLE: caption, LINK: firstVideoLink }) + `\n\n*Total Parts Published:* ${chunks.length}`, {
@@ -477,6 +536,42 @@ function cleanupTempFiles(slug) {
 
 async function updateMsg(bot, chatId, msgId, text) {
   try { await bot.editMessageText(text, { chat_id: chatId, message_id: msgId, parse_mode: 'Markdown' }); } catch (_) {}
+}
+
+async function uploadToStreamtape(filePath, filename) {
+  const login = process.env.STREAMTAPE_LOGIN || '15a6b6d591b99774fe65';
+  const key = process.env.STREAMTAPE_KEY || 'De0xQO7DjxUkpwx';
+
+  const getUrlRes = await axios.get(`https://api.streamtape.com/file/ul?login=${login}&key=${key}`);
+  if (!getUrlRes.data || getUrlRes.data.status !== 200) {
+    throw new Error('Failed to get Streamtape upload URL: ' + (getUrlRes.data?.msg || 'Unknown error'));
+  }
+  const uploadUrl = getUrlRes.data.result.url;
+
+  const FormData = require('form-data');
+  const form = new FormData();
+  form.append('file1', fs.createReadStream(filePath), filename);
+
+  const uploadRes = await axios.post(uploadUrl, form, {
+    headers: form.getHeaders(),
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity
+  });
+
+  if (!uploadRes.data || uploadRes.data.status !== 200) {
+    throw new Error('Upload to Streamtape failed: ' + (uploadRes.data?.msg || 'Unknown error'));
+  }
+
+  const fileId = uploadRes.data.result.id;
+  const embedUrl = `https://streamtape.com/e/${fileId}/`;
+  return { fileId, embedUrl };
+}
+
+function detectCategory(title) {
+  const t = String(title || '').toLowerCase();
+  if (t.includes('funny') || t.includes('comedy') || t.includes('joke')) return 'funny';
+  if (t.includes('study') || t.includes('edu') || t.includes('learn')) return 'education';
+  return 'entertainment';
 }
 
 module.exports = { initAdminHandler, isAdmin };

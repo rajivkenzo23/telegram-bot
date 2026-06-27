@@ -1,6 +1,8 @@
 /* ============================================
    VideoSLK Bot — Telegram File Downloader
-   Streams files via Bot API (20 MB max per Telegram rules)
+   Supports both:
+   1. GramJS MTProto Client (unlimited file size)
+   2. Fallback to standard Bot API (20 MB max limit)
    ============================================ */
 
 const fs = require('fs');
@@ -8,10 +10,59 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 const { config } = require('../config');
+const { TelegramClient } = require("telegram");
+const { StringSession } = require("telegram/sessions");
 
 const TELEGRAM_BOT_MAX_DOWNLOAD = 20 * 1024 * 1024; // 20 MB
+let gramjsClient = null;
 
-function downloadTelegramFile(bot, fileId, destPath) {
+async function getGramjsClient() {
+  if (gramjsClient) return gramjsClient;
+
+  const apiId = parseInt(process.env.TELEGRAM_API_ID, 10);
+  const apiHash = process.env.TELEGRAM_API_HASH;
+  const sessionStr = process.env.TELEGRAM_SESSION;
+
+  if (!apiId || !apiHash || !sessionStr || sessionStr === 'YOUR_TELEGRAM_SESSION_HERE') {
+    return null;
+  }
+
+  try {
+    const stringSession = new StringSession(sessionStr);
+    gramjsClient = new TelegramClient(stringSession, apiId, apiHash, {
+      connectionRetries: 5,
+    });
+    await gramjsClient.connect();
+    console.log("🚀 GramJS connected successfully for main bot downloader!");
+    return gramjsClient;
+  } catch (err) {
+    console.error("❌ Failed to connect GramJS for main bot:", err.message);
+    return null;
+  }
+}
+
+async function downloadTelegramFile(bot, fileId, destPath, chatId = null, messageId = null) {
+  try {
+    const client = await getGramjsClient();
+    if (client && chatId && messageId) {
+      console.log(`📡 Downloading via GramJS MTProto client (chat: ${chatId}, msg: ${messageId})...`);
+      const messages = await client.getMessages(chatId, { ids: [messageId] });
+      if (messages && messages.length > 0 && messages[0].media) {
+        const dir = path.dirname(destPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        
+        await client.downloadMedia(messages[0], {
+          outputFile: destPath
+        });
+        const stats = fs.statSync(destPath);
+        return { path: destPath, size: stats.size };
+      }
+      console.warn("⚠️ Could not locate media via MTProto. Falling back to Bot API.");
+    }
+  } catch (err) {
+    console.warn(`⚠️ GramJS download failed: ${err.message}. Falling back to standard Bot API.`);
+  }
+
   return new Promise(async (resolve, reject) => {
     try {
       const file = await bot.getFile(fileId);
