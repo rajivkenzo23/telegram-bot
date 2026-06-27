@@ -7,6 +7,7 @@ const { config, formatMessage } = require('../config');
 const { generateCaption, generateSlug, generateDescription } = require('./captionGenerator');
 const { addVideo } = require('./dataManager');
 const { downloadTelegramFile } = require('./telegramDownloader');
+const { publishToBlogger } = require('./bloggerPublisher');
 const { postToPremiumChannelBatch, postToFreeChannel } = require('./channelPoster');
 
 const adminState = {};
@@ -441,6 +442,16 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
         }
       } catch (d1Err) {
         console.error("⚠️ Failed to sync metadata to Cloudflare D1:", d1Err.message);
+      }
+
+      // Publish to Blogspot (Blogger)
+      try {
+        if (embedUrl) {
+          await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 6/6:* ✍️ Publishing to Blogspot (Part ${partNum}/${chunks.length})...`);
+          await publishToBlogger(chunkCaption, chunkSlug, description, embedUrl);
+        }
+      } catch (blogErr) {
+        console.error("⚠️ Failed to publish to Blogger:", blogErr.message);
       }
     }
 
