@@ -110,7 +110,7 @@ async function postToFreeChannel(bot, localThumbPath, caption, videoLink, localP
   const channelCaption = generateChannelCaption(caption, videoLink);
   const keyboard = {
     inline_keyboard: [
-      [{ text: '🔓 Unlock Full Video', url: videoLink }],
+      [{ text: '🌐 Watch on Website · Site එකේ බලන්න ✨', url: videoLink }],
       [{ text: '⭐ Join Premium (No Ads)', url: config.premiumInviteLink }]
     ]
   };
