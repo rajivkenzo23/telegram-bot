@@ -9,7 +9,8 @@ const { execSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+const BOT_DIR = fs.existsSync(path.join(__dirname, 'bot', 'index.js')) ? path.join(__dirname, 'bot') : __dirname;
+require('dotenv').config({ path: path.join(BOT_DIR, '.env') });
 
 const GITHUB_TOKEN   = process.env.GITHUB_TOKEN;
 const GITHUB_REPO    = process.env.GITHUB_REPO_BOT    || 'rajivkenzo23/telegram-bot';
@@ -98,10 +99,10 @@ function pullLatestFiles() {
     console.log('   ✅ Files updated from GitHub');
 
     // Install any new dependencies
-    if (fs.existsSync(path.join(__dirname, 'package.json'))) {
+    if (fs.existsSync(path.join(BOT_DIR, 'package.json'))) {
       console.log('   📦 Installing dependencies...');
       execSync('npm install --production', {
-        cwd: __dirname,
+        cwd: BOT_DIR,
         stdio: 'pipe'
       });
       console.log('   ✅ Dependencies installed');
@@ -142,7 +143,7 @@ function spawnBot() {
   console.log('🚀 Starting bot (index.js)...');
 
   botProcess = spawn('node', ['index.js'], {
-    cwd: __dirname,
+    cwd: BOT_DIR,
     stdio: 'inherit',
     env: process.env
   });
