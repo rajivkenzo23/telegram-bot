@@ -434,7 +434,8 @@ async function uploadVideoFiles(slug, caption, description, thumbnailBase64, thu
     thumbnail: thumbPath, preview: previewPath,
     duration: duration.duration || '0:00', durationISO: duration.durationISO || '0S',
     views: views, category: category, tags: tags, date: today,
-    telegramFileId: state.fileId || ''
+    telegramFileId: state.fileId || '',
+    embedUrl: state.embedUrl || ''
   };
 
   // Step 1: Upload independent assets in parallel
