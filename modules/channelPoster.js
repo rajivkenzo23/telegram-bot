@@ -33,6 +33,22 @@ async function postToPremiumChannelBatch(bot, videos, caption) {
 
   console.log(`\n💎 Posting FULL video batch to premium channel`);
 
+  // If the batch contains Streamtape links (no fileId), post as text message!
+  const isStreamtapeBatch = videos.some(v => v.streamtapeUrl);
+  if (isStreamtapeBatch) {
+    console.log(`💎 Posting Streamtape links text batch to premium channel`);
+    try {
+      const linksText = videos.map((v, idx) => `🎬 *Part ${idx + 1}:* ${v.fileName || 'Video'}\n🔗 ${v.streamtapeUrl.replace('/e/', '/v/')}`).join('\n\n');
+      const text = `🎬 *${escapeMd(caption)}*\n\n💎 *VideoSLK Premium Links:*\n\n${linksText}`;
+      await bot.sendMessage(config.premiumChannelId, text, { parse_mode: 'Markdown' });
+      console.log(`   ✅ Premium channel posted text links!`);
+      return { success: true, count: 1 };
+    } catch (err) {
+      console.error(`   ❌ Premium links post failed:`, err.message);
+      return { success: false };
+    }
+  }
+
   // Split into chunks of 10
   const chunks = [];
   for (let i = 0; i < videos.length; i += 10) {
