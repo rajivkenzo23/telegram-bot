@@ -23,3 +23,5 @@ Thumbs.db
 *.zip
 *.tar.gz
 temp_original_bot/
+
+launcher.js
