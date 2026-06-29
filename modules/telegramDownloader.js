@@ -45,8 +45,31 @@ async function downloadTelegramFile(bot, fileId, destPath, chatId = null, messag
   try {
     const client = await getGramjsClient();
     if (client && chatId && messageId) {
-      console.log(`📡 Downloading via GramJS MTProto client (chat: ${chatId}, msg: ${messageId})...`);
-      const messages = await client.getMessages(chatId, { ids: [messageId] });
+      if (!client.connected) {
+        console.log("📡 GramJS client disconnected. Reconnecting before download...");
+        await client.connect();
+      }
+
+      let targetChat = chatId;
+      // If chatId is the admin ID, the user client sees this chat under the bot's username/peer
+      if (Number(chatId) === Number(config.adminId)) {
+        targetChat = config.botLink.split('/').pop().replace('@', '');
+      }
+
+      console.log(`📡 Downloading via GramJS MTProto client (chat: ${targetChat}, msg: ${messageId})...`);
+      let messages = null;
+      try {
+        messages = await client.getMessages(targetChat, { ids: [messageId] });
+      } catch (e) {
+        console.warn(`⚠️ GramJS getMessages failed with primary chat, trying fallback to bot username...`);
+        const fallbackChat = config.botLink.split('/').pop().replace('@', '');
+        if (fallbackChat !== targetChat) {
+          messages = await client.getMessages(fallbackChat, { ids: [messageId] });
+        } else {
+          throw e;
+        }
+      }
+
       if (messages && messages.length > 0 && messages[0].media) {
         const dir = path.dirname(destPath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

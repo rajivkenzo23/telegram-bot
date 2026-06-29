@@ -371,20 +371,39 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
       // Download full video and upload to Streamtape for embed playing
       let embedUrl = '';
       const firstVideo = chunks[i][0];
-      const fullVideoPath = path.join(tempDir, `${chunkSlug}_full.mp4`);
       
-      try {
-        await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* ⬇️ Downloading full video for Streamtape (Part ${partNum}/${chunks.length})...`);
-        await downloadTelegramFile(bot, firstVideo.fileId, fullVideoPath, chatId, firstVideo.messageId);
-        
-        await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 🎥 Uploading full video to Streamtape (Part ${partNum}/${chunks.length})...`);
-        const uploadRes = await uploadToStreamtape(fullVideoPath, firstVideo.fileName);
-        embedUrl = uploadRes.embedUrl;
-        
-        try { fs.unlinkSync(fullVideoPath); } catch (_) {}
-      } catch (uploadErr) {
-        console.error("⚠️ Streamtape upload failed:", uploadErr.message);
-        try { fs.unlinkSync(fullVideoPath); } catch (_) {}
+      let videoToUploadPath = null;
+      let shouldDeletePath = false;
+
+      // Reuse the already downloaded video from Step 2 if possible to avoid double downloading!
+      if (i === 0 && state.previewType === 'auto' && localVideoPath && fs.existsSync(localVideoPath)) {
+        videoToUploadPath = localVideoPath;
+        shouldDeletePath = false;
+        console.log(`🚀 Reusing local video source file to upload to Streamtape: ${videoToUploadPath}`);
+      } else {
+        const fullVideoPath = path.join(tempDir, `${chunkSlug}_full.mp4`);
+        try {
+          await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* ⬇️ Downloading full video for Streamtape (Part ${partNum}/${chunks.length})...`);
+          await downloadTelegramFile(bot, firstVideo.fileId, fullVideoPath, chatId, firstVideo.messageId);
+          videoToUploadPath = fullVideoPath;
+          shouldDeletePath = true;
+        } catch (downloadErr) {
+          console.error("⚠️ Streamtape download fallback failed:", downloadErr.message);
+        }
+      }
+
+      if (videoToUploadPath && fs.existsSync(videoToUploadPath)) {
+        try {
+          await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 🎥 Uploading full video to Streamtape (Part ${partNum}/${chunks.length})...`);
+          const uploadRes = await uploadToStreamtape(videoToUploadPath, firstVideo.fileName);
+          embedUrl = uploadRes.embedUrl;
+        } catch (uploadErr) {
+          console.error("⚠️ Streamtape upload failed:", uploadErr.message);
+        } finally {
+          if (shouldDeletePath) {
+            try { fs.unlinkSync(videoToUploadPath); } catch (_) {}
+          }
+        }
       }
 
       await uploadToGithub(chunkSlug, chunkCaption, description, thumbnailBase64, thumbExtension, duration, { fileId: firstVideo.fileId, embedUrl }, localPreviewPath);
