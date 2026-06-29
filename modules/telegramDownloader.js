@@ -33,10 +33,28 @@ async function getGramjsClient() {
       connectionRetries: 5,
     });
     await gramjsClient.connect();
-    console.log("🚀 GramJS connected successfully for main bot downloader!");
+    console.log("🚀 GramJS User Client connected successfully for main bot downloader!");
     return gramjsClient;
   } catch (err) {
-    console.error("❌ Failed to connect GramJS for main bot:", err.message);
+    console.error("❌ Failed to connect GramJS User Client:", err.message);
+    
+    // Fallback: If session failed (e.g. AUTH_KEY_DUPLICATED), connect as Bot Client using the Bot Token!
+    if (err.message.includes('AUTH_KEY_DUPLICATED') || err.message.includes('406') || err.message.includes('session')) {
+      console.log("⚠️ Session duplicated or invalid. Initializing GramJS as Bot Client...");
+      try {
+        gramjsClient = new TelegramClient(new StringSession(""), apiId, apiHash, {
+          connectionRetries: 5,
+        });
+        await gramjsClient.start({
+          botToken: config.botToken
+        });
+        console.log("🚀 GramJS Bot Client fallback connected successfully!");
+        return gramjsClient;
+      } catch (botErr) {
+        console.error("❌ Failed to connect GramJS Bot Client fallback:", botErr.message);
+      }
+    }
+    
     return null;
   }
 }

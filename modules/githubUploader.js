@@ -298,6 +298,108 @@ function generateWatchPage(slug, video) {
           </div>
         </div>
 
+        <!-- Dynamic Gallery Grid for Multiple Parts -->
+        <div id="batch-gallery-container" style="display: none; margin: 20px 0; padding: 18px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);">
+          <h3 style="margin: 0 0 14px; font-weight: 800; font-size: 1.1rem; color: #fff; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-layer-group" style="color: var(--red-primary);"></i> Video Parts Gallery (<span id="batch-parts-count">0</span> Parts)
+          </h3>
+          <div id="batch-gallery-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px;">
+             <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <script>
+          (function() {
+            const rawThumbs = "${video.thumbnailsAll || video.thumbnail || ''}";
+            const rawUrls = "${video.embedUrl || ''}";
+            
+            // Parse comma-separated strings
+            const thumbs = rawThumbs.split(',').map(t => t.trim()).filter(Boolean);
+            const urls = rawUrls.split(',').map(u => u.trim()).filter(Boolean);
+            
+            if (urls.length > 1) {
+              const galleryContainer = document.getElementById('batch-gallery-container');
+              const galleryGrid = document.getElementById('batch-gallery-grid');
+              const partsCountSpan = document.getElementById('batch-parts-count');
+              
+              if (galleryContainer && galleryGrid) {
+                galleryContainer.style.display = 'block';
+                if (partsCountSpan) partsCountSpan.textContent = urls.length;
+                galleryGrid.innerHTML = '';
+                
+                urls.forEach((url, index) => {
+                  const partNum = index + 1;
+                  const thumb = thumbs[index] || thumbs[0] || 'assets/thumbs/default-video.jpg';
+                  
+                  // Create card element
+                  const card = document.createElement('div');
+                  card.className = 'gallery-part-card';
+                  card.style.cssText = 'position:relative; aspect-ratio:16/9; border-radius:var(--radius-md); overflow:hidden; border:1px solid var(--border-subtle); background:#111; cursor:pointer; transition:transform 0.2s, border-color 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.3);';
+                  
+                  // Convert Streamtape embed to watch URL on the fly
+                  const watchUrl = url.replace('/e/', '/v/');
+                  
+                  card.innerHTML = `
+                    <img src="/\${thumb}" style="width:100%; height:100%; object-fit:cover; display:block; filter:brightness(0.55); transition: filter 0.2s;">
+                    <div style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,0.9); font-weight:800; font-size:0.88rem; gap: 4px;">
+                      <span class="part-lock-icon" style="font-size:1.1rem; color: #ff5555;"><i class="fa-solid fa-lock"></i></span>
+                      <span>Part \${partNum}</span>
+                    </div>
+                  `;
+                  
+                  // Card hover effects
+                  card.onmouseenter = () => { 
+                    card.style.transform = 'scale(1.04)'; 
+                    card.style.borderColor = 'var(--red-primary)';
+                    const img = card.querySelector('img');
+                    if (img) img.style.filter = 'brightness(0.45)';
+                  };
+                  card.onmouseleave = () => { 
+                    card.style.transform = 'scale(1)'; 
+                    card.style.borderColor = 'var(--border-subtle)';
+                    const img = card.querySelector('img');
+                    if (img) img.style.filter = 'brightness(0.55)';
+                  };
+                  
+                  // On click handler
+                  card.onclick = function() {
+                    const videoId = document.body.getAttribute('data-video-id') || window.location.pathname.split('/').pop().replace('.html', '');
+                    const isUnlocked = sessionStorage.getItem('vslk_unlocked_' + videoId) === '1' || sessionStorage.getItem('vslk_u_' + videoId) === '1';
+                    if (isUnlocked) {
+                      location.href = watchUrl;
+                    } else {
+                      document.getElementById('unlock-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      // highlight the unlock section
+                      const unlockCard = document.getElementById('unlock-section');
+                      if (unlockCard) {
+                        unlockCard.style.outline = '3px solid var(--red-primary)';
+                        setTimeout(() => { unlockCard.style.outline = 'none'; }, 2500);
+                      }
+                    }
+                  };
+                  
+                  galleryGrid.appendChild(card);
+                });
+                
+                // Watch for unlock event to update the lock icons
+                const updateLockIcons = () => {
+                  const videoId = document.body.getAttribute('data-video-id') || window.location.pathname.split('/').pop().replace('.html', '');
+                  const isUnlocked = sessionStorage.getItem('vslk_unlocked_' + videoId) === '1' || sessionStorage.getItem('vslk_u_' + videoId) === '1';
+                  if (isUnlocked) {
+                    document.querySelectorAll('.part-lock-icon').forEach(icon => {
+                      icon.innerHTML = '<i class="fa-solid fa-play" style="color: #00ffcc;"></i>';
+                    });
+                  }
+                };
+                
+                // Run on load and periodically / after action
+                updateLockIcons();
+                document.addEventListener('click', () => setTimeout(updateLockIcons, 500));
+              }
+            }
+          })();
+        </script>
+
         <h1 class="video-title" style="margin:16px 0 6px;font-size:1.5rem;font-weight:900;line-height:1.25;">${escHtml(video.title)}</h1>
         <div class="video-meta" style="display:flex;gap:14px;flex-wrap:wrap;color:var(--text-muted);font-size:0.85rem;margin-bottom:10px;font-family:'JetBrains Mono',monospace;">
           <span><i class="fa-solid fa-eye"></i> ${fmtViews(video.views || 0)} views</span>
@@ -431,7 +533,9 @@ async function uploadVideoFiles(slug, caption, description, thumbnailBase64, thu
 
   const videoMeta = {
     id: slug, title: caption, description: description,
-    thumbnail: thumbPath, preview: previewPath,
+    thumbnail: thumbPath,
+    thumbnailsAll: state.thumbnailsAll || thumbPath,
+    preview: previewPath,
     duration: duration.duration || '0:00', durationISO: duration.durationISO || '0S',
     views: views, category: category, tags: tags, date: today,
     telegramFileId: state.fileId || '',

@@ -368,45 +368,96 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
       // 4. Publish to Website & Streamtape
       await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 🌐 Publishing watch page (Part ${partNum}/${chunks.length})...`);
       
-      // Download full video and upload to Streamtape for embed playing
-      let embedUrl = '';
+      const embedUrls = [];
+      const thumbnails = [];
       const firstVideo = chunks[i][0];
-      
-      let videoToUploadPath = null;
-      let shouldDeletePath = false;
 
-      // Reuse the already downloaded video from Step 2 if possible to avoid double downloading!
-      if (i === 0 && state.previewType === 'auto' && localVideoPath && fs.existsSync(localVideoPath)) {
-        videoToUploadPath = localVideoPath;
-        shouldDeletePath = false;
-        console.log(`🚀 Reusing local video source file to upload to Streamtape: ${videoToUploadPath}`);
-      } else {
-        const fullVideoPath = path.join(tempDir, `${chunkSlug}_full.mp4`);
-        try {
-          await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* ⬇️ Downloading full video for Streamtape (Part ${partNum}/${chunks.length})...`);
-          await downloadTelegramFile(bot, firstVideo.fileId, fullVideoPath, chatId, firstVideo.messageId);
-          videoToUploadPath = fullVideoPath;
-          shouldDeletePath = true;
-        } catch (downloadErr) {
-          console.error("⚠️ Streamtape download fallback failed:", downloadErr.message);
+      // Main thumbnail for Part 1 (vIdx = 0)
+      const mainThumbPath = `assets/thumbs/${chunkSlug}.${thumbExtension || 'jpg'}`;
+      thumbnails.push(mainThumbPath);
+
+      for (let vIdx = 0; vIdx < chunks[i].length; vIdx++) {
+        const videoFile = chunks[i][vIdx];
+        const partNumLabel = `Part ${vIdx + 1}/${chunks[i].length}`;
+        
+        let videoToUploadPath = null;
+        let shouldDeletePath = false;
+
+        // Step A: Download the video file
+        if (i === 0 && vIdx === 0 && state.previewType === 'auto' && localVideoPath && fs.existsSync(localVideoPath)) {
+          videoToUploadPath = localVideoPath;
+          shouldDeletePath = false;
+          console.log(`🚀 Reusing local video source file for Part 1 Streamtape upload: ${videoToUploadPath}`);
+        } else {
+          const fullVideoPath = path.join(tempDir, `${chunkSlug}_part_${vIdx + 1}_full.mp4`);
+          try {
+            await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* ⬇️ Downloading video for Streamtape (${partNumLabel})...`);
+            await downloadTelegramFile(bot, videoFile.fileId, fullVideoPath, chatId, videoFile.messageId);
+            videoToUploadPath = fullVideoPath;
+            shouldDeletePath = true;
+          } catch (downloadErr) {
+            console.error(`⚠️ Streamtape download failed for part ${vIdx + 1}:`, downloadErr.message);
+          }
         }
-      }
 
-      if (videoToUploadPath && fs.existsSync(videoToUploadPath)) {
-        try {
-          await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 🎥 Uploading full video to Streamtape (Part ${partNum}/${chunks.length})...`);
-          const uploadRes = await uploadToStreamtape(videoToUploadPath, firstVideo.fileName);
-          embedUrl = uploadRes.embedUrl;
-        } catch (uploadErr) {
-          console.error("⚠️ Streamtape upload failed:", uploadErr.message);
-        } finally {
-          if (shouldDeletePath) {
-            try { fs.unlinkSync(videoToUploadPath); } catch (_) {}
+        // Step B: Upload to Streamtape
+        let partEmbedUrl = '';
+        if (videoToUploadPath && fs.existsSync(videoToUploadPath)) {
+          try {
+            await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 🎥 Uploading video to Streamtape (${partNumLabel})...`);
+            const uploadRes = await uploadToStreamtape(videoToUploadPath, videoFile.fileName);
+            partEmbedUrl = uploadRes.embedUrl;
+            embedUrls.push(partEmbedUrl);
+          } catch (uploadErr) {
+            console.error(`⚠️ Streamtape upload failed for part ${vIdx + 1}:`, uploadErr.message);
+            embedUrls.push('');
+          } finally {
+            if (shouldDeletePath) {
+              try { fs.unlinkSync(videoToUploadPath); } catch (_) {}
+            }
+          }
+        } else {
+          embedUrls.push('');
+        }
+
+        // Step C: Download and upload Part Thumbnail (for vIdx > 0)
+        if (vIdx > 0) {
+          await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 📸 Processing thumbnail (${partNumLabel})...`);
+          const partThumbPath = `assets/thumbs/${chunkSlug}-part-${vIdx + 1}.jpg`;
+          let partThumbBase64 = null;
+          
+          if (videoFile.thumbFileId) {
+            try {
+              const thumbData = await downloadTelegramThumbnail(bot, videoFile.thumbFileId, `${chunkSlug}-part-${vIdx + 1}`);
+              partThumbBase64 = thumbData.base64;
+            } catch (e) {
+              console.log(`   ⚠️ Failed to download telegram thumb for part ${vIdx + 1}: ${e.message}`);
+            }
+          }
+          
+          if (!partThumbBase64 && thumbnailBase64) {
+            partThumbBase64 = thumbnailBase64; // Re-use main thumb if telegram thumbnail is missing
+          }
+          
+          if (partThumbBase64) {
+            try {
+              const { uploadFile } = require('./githubUploader');
+              await uploadFile(partThumbPath, partThumbBase64, `Part Thumb: ${chunkSlug} Part ${vIdx + 1}`, true);
+              thumbnails.push(partThumbPath);
+            } catch (githubErr) {
+              console.error(`⚠️ GitHub thumbnail upload failed for part ${vIdx + 1}:`, githubErr.message);
+              thumbnails.push(mainThumbPath);
+            }
+          } else {
+            thumbnails.push(mainThumbPath);
           }
         }
       }
 
-      await uploadToGithub(chunkSlug, chunkCaption, description, thumbnailBase64, thumbExtension, duration, { fileId: firstVideo.fileId, embedUrl }, localPreviewPath);
+      const embedUrlsString = embedUrls.join(',');
+      const thumbnailsString = thumbnails.join(',');
+
+      await uploadToGithub(chunkSlug, chunkCaption, description, thumbnailBase64, thumbExtension, duration, { fileId: firstVideo.fileId, embedUrl: embedUrlsString, thumbnailsAll: thumbnailsString }, localPreviewPath);
 
       // 5. Post to Free Channel
       await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 5/6:* 📢 Posting to free channel (Part ${partNum}/${chunks.length})...`);
@@ -426,7 +477,7 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
         mediaFiles,
         duration: 'Batch',
         link: videoLink,
-        embedUrl: embedUrl
+        embedUrl: embedUrlsString
       });
 
       // Cloudflare D1 Database via Pages API
@@ -435,14 +486,14 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
           id: chunkSlug,
           title: chunkCaption,
           description: description,
-          thumbnail: thumbnailBase64 ? `assets/thumbs/${chunkSlug}.${thumbExtension || 'jpg'}` : 'assets/thumbs/default-video.jpg',
+          thumbnail: thumbnailsString,
           preview: localPreviewPath ? `assets/previews/${chunkSlug}.mp4` : '',
           duration: 'Batch',
           views: 1500,
           category: detectCategory(chunkCaption),
           tags: ['entertainment', 'viral', 'trending'],
           telegramFileId: firstVideo.fileId,
-          embedUrl: embedUrl,
+          embedUrl: embedUrlsString,
           date: new Date().toISOString().split('T')[0]
         };
 
@@ -551,6 +602,41 @@ function cleanupTempFiles(slug) {
       }
     });
   } catch (_) {}
+}
+
+async function downloadTelegramThumbnail(bot, fileId, slug) {
+  const tempDir = path.join(__dirname, '../temp');
+  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+  const localPath = path.join(tempDir, `${slug}_thumb.jpg`);
+  
+  try {
+    const file = await bot.getFile(fileId);
+    const url = `https://api.telegram.org/file/bot${config.botToken}/${file.file_path}`;
+    
+    return new Promise((resolve, reject) => {
+      const writer = fs.createWriteStream(localPath);
+      const protocol = url.startsWith('https') ? https : http;
+      protocol.get(url, (res) => {
+        if (res.statusCode !== 200) {
+          writer.destroy();
+          try { fs.unlinkSync(localPath); } catch (_) {}
+          return reject(new Error(`HTTP ${res.statusCode}`));
+        }
+        res.pipe(writer);
+        writer.on('finish', () => {
+          writer.close();
+          const buf = fs.readFileSync(localPath);
+          const base64 = buf.toString('base64');
+          try { fs.unlinkSync(localPath); } catch (_) {} // delete local file
+          resolve({ base64 });
+        });
+        writer.on('error', reject);
+      }).on('error', reject);
+    });
+  } catch (err) {
+    console.error(`⚠️ Failed to download telegram thumbnail for ${slug}:`, err.message);
+    throw err;
+  }
 }
 
 async function updateMsg(bot, chatId, msgId, text) {
