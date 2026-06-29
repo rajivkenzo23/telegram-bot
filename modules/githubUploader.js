@@ -339,13 +339,12 @@ function generateWatchPage(slug, video) {
                   // Convert Streamtape embed to watch URL on the fly
                   const watchUrl = url.replace('/e/', '/v/');
                   
-                  card.innerHTML = `
-                    <img src="/\${thumb}" style="width:100%; height:100%; object-fit:cover; display:block; filter:brightness(0.55); transition: filter 0.2s;">
-                    <div style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,0.9); font-weight:800; font-size:0.88rem; gap: 4px;">
-                      <span class="part-lock-icon" style="font-size:1.1rem; color: #ff5555;"><i class="fa-solid fa-lock"></i></span>
-                      <span>Part \${partNum}</span>
-                    </div>
-                  `;
+                  card.innerHTML = 
+                    "<img src=\"/" + thumb + "\" style=\"width:100%; height:100%; object-fit:cover; display:block; filter:brightness(0.55); transition: filter 0.2s;\">" +
+                    "<div style=\"position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,0.9); font-weight:800; font-size:0.88rem; gap: 4px;\">" +
+                    "  <span class=\"part-lock-icon\" style=\"font-size:1.1rem; color: #ff5555;\"><i class=\"fa-solid fa-lock\"></i></span>" +
+                    "  <span>Part " + partNum + "</span>" +
+                    "</div>";
                   
                   // Card hover effects
                   card.onmouseenter = () => { 

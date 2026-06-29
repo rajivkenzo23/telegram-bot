@@ -38,21 +38,19 @@ async function getGramjsClient() {
   } catch (err) {
     console.error("❌ Failed to connect GramJS User Client:", err.message);
     
-    // Fallback: If session failed (e.g. AUTH_KEY_DUPLICATED), connect as Bot Client using the Bot Token!
-    if (err.message.includes('AUTH_KEY_DUPLICATED') || err.message.includes('406') || err.message.includes('session')) {
-      console.log("⚠️ Session duplicated or invalid. Initializing GramJS as Bot Client...");
-      try {
-        gramjsClient = new TelegramClient(new StringSession(""), apiId, apiHash, {
-          connectionRetries: 5,
-        });
-        await gramjsClient.start({
-          botToken: config.botToken
-        });
-        console.log("🚀 GramJS Bot Client fallback connected successfully!");
-        return gramjsClient;
-      } catch (botErr) {
-        console.error("❌ Failed to connect GramJS Bot Client fallback:", botErr.message);
-      }
+    // Fallback: If User Client session fails for any reason (duplicate session, unregistered, etc.), log in as Bot Client!
+    console.log("⚠️ User session failed. Initializing GramJS as Bot Client...");
+    try {
+      gramjsClient = new TelegramClient(new StringSession(""), apiId, apiHash, {
+        connectionRetries: 5,
+      });
+      await gramjsClient.start({
+        botToken: process.env.BOT_TOKEN
+      });
+      console.log("🚀 GramJS Bot Client fallback connected successfully!");
+      return gramjsClient;
+    } catch (botErr) {
+      console.error("❌ Failed to connect GramJS Bot Client fallback:", botErr.message);
     }
     
     return null;
@@ -68,23 +66,17 @@ async function downloadTelegramFile(bot, fileId, destPath, chatId = null, messag
         await client.connect();
       }
 
-      let targetChat = chatId;
-      // If chatId is the admin ID, the user client sees this chat under the bot's username/peer
-      if (Number(chatId) === Number(config.adminId)) {
-        targetChat = config.botLink.split('/').pop().replace('@', '');
-      }
-
-      console.log(`📡 Downloading via GramJS MTProto client (chat: ${targetChat}, msg: ${messageId})...`);
+      console.log(`📡 Downloading via GramJS MTProto client (chat: ${chatId}, msg: ${messageId})...`);
       let messages = null;
       try {
-        messages = await client.getMessages(targetChat, { ids: [messageId] });
+        messages = await client.getMessages(chatId, { ids: [messageId] });
       } catch (e) {
         console.warn(`⚠️ GramJS getMessages failed with primary chat, trying fallback to bot username...`);
-        const fallbackChat = config.botLink.split('/').pop().replace('@', '');
-        if (fallbackChat !== targetChat) {
-          messages = await client.getMessages(fallbackChat, { ids: [messageId] });
-        } else {
-          throw e;
+        const botUsername = config.botLink.split('/').pop().replace('@', '');
+        try {
+          messages = await client.getMessages(botUsername, { ids: [messageId] });
+        } catch (fallbackErr) {
+          throw e; // throw original error if fallback also fails
         }
       }
 
