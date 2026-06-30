@@ -325,8 +325,12 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
 
   try {
     // 1. Post to premium channel in batches of 10
-    await updateMsg(bot, chatId, processingMsg.message_id, '⏳ *Step 1/6:* 💎 Posting batch to premium channel...');
-    await postToPremiumChannelBatch(bot, state.videos, caption);
+    if (process.env.SKIP_PREMIUM_POSTS === 'true') {
+      await updateMsg(bot, chatId, processingMsg.message_id, '⏳ *Step 1/6:* 💎 Skipping premium channel post (SKIP_PREMIUM_POSTS=true)...');
+    } else {
+      await updateMsg(bot, chatId, processingMsg.message_id, '⏳ *Step 1/6:* 💎 Posting batch to premium channel...');
+      await postToPremiumChannelBatch(bot, state.videos, caption);
+    }
 
     // 2. Download Preview File
     await updateMsg(bot, chatId, processingMsg.message_id, '⏳ *Step 2/6:* ⬇️ Downloading preview source...');
