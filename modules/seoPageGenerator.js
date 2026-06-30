@@ -529,6 +529,79 @@ function generateWatchPage(slug, video) {
           <span><i class="fa-solid fa-clock"></i> ${video.duration || '0:00'}</span>
         </div>
 
+        <!-- Image Teaser Gallery (Visible before unlocking) -->
+        <div id="teaser-gallery-container" style="display: none; margin: 15px 0 25px; padding: 18px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);">
+          <h3 style="margin: 0 0 14px; font-weight: 800; font-size: 1.1rem; color: #fff; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-images" style="color: var(--red-primary);"></i> Photo Gallery Preview
+          </h3>
+          <div id="teaser-gallery-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px;">
+             <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Lightbox Modal for Photo Preview -->
+        <div id="vslk-lightbox" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 99999; justify-content: center; align-items: center; cursor: zoom-out;">
+          <span style="position: absolute; top: 20px; right: 25px; color: #fff; font-size: 35px; font-weight: bold; cursor: pointer;" onclick="document.getElementById('vslk-lightbox').style.display='none'">&times;</span>
+          <img id="vslk-lightbox-img" src="" style="max-width: 95%; max-height: 90%; object-fit: contain; border-radius: var(--radius-md); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        </div>
+
+        <script>
+          (function() {
+            const rawImages = "${video.teaserImagesAll || ''}";
+            const images = rawImages.split(',').map(img => img.trim()).filter(Boolean);
+            
+            if (images.length > 0) {
+              const container = document.getElementById('teaser-gallery-container');
+              const grid = document.getElementById('teaser-gallery-grid');
+              
+              if (container && grid) {
+                container.style.display = 'block';
+                grid.innerHTML = '';
+                
+                images.forEach((imgUrl) => {
+                  const imgCard = document.createElement('div');
+                  imgCard.style.cssText = 'position:relative; aspect-ratio:1/1; border-radius:var(--radius-md); overflow:hidden; border:1px solid var(--border-subtle); background:#111; cursor:zoom-in; transition:transform 0.2s;';
+                  imgCard.innerHTML = `<img src="/${imgUrl}" style="width:100%; height:100%; object-fit:cover; display:block; filter:brightness(0.85); transition:filter 0.2s;">`;
+                  
+                  // Hover effects
+                  imgCard.onmouseenter = () => {
+                    imgCard.style.transform = 'scale(1.05)';
+                    const img = imgCard.querySelector('img');
+                    if (img) img.style.filter = 'brightness(1)';
+                  };
+                  imgCard.onmouseleave = () => {
+                    imgCard.style.transform = 'scale(1)';
+                    const img = imgCard.querySelector('img');
+                    if (img) img.style.filter = 'brightness(0.85)';
+                  };
+                  
+                  // Click handler to open lightbox
+                  imgCard.onclick = () => {
+                    const lightbox = document.getElementById('vslk-lightbox');
+                    const lightboxImg = document.getElementById('vslk-lightbox-img');
+                    if (lightbox && lightboxImg) {
+                      lightboxImg.src = '/' + imgUrl;
+                      lightbox.style.display = 'flex';
+                    }
+                  };
+                  
+                  grid.appendChild(imgCard);
+                });
+              }
+            }
+            
+            // Close lightbox on click outside image
+            const lightbox = document.getElementById('vslk-lightbox');
+            if (lightbox) {
+              lightbox.onclick = (e) => {
+                if (e.target.id !== 'vslk-lightbox-img') {
+                  lightbox.style.display = 'none';
+                }
+              };
+            }
+          })();
+        </script>
+
         <!-- ===== UNLOCK SECTION ===== -->
         <div class="verification-card animate-on-scroll required" id="unlock-section">
           <div class="verification-progress-bar">
