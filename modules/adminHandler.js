@@ -542,14 +542,12 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
       const embedUrlsString = embedUrls.join(',');
       const thumbnailsString = thumbnails.join(',');
 
-      await uploadToGithub(chunkSlug, chunkCaption, description, thumbnailBase64, thumbExtension, duration, { fileId: firstVideo.fileId, embedUrl: embedUrlsString, thumbnailsAll: thumbnailsString }, localPreviewPath);
-
       // 5. Post to Free Channel
       await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 5/6:* 📢 Posting to free channel (Part ${partNum}/${chunks.length})...`);
-      await postToFreeChannel(bot, localThumbPath, chunkCaption, videoLink, localPreviewPath);
+      await postToFreeChannel(bot, localThumbPath, chunkCaption, embedUrls, localPreviewPath);
 
-      // 6. Save Metadata (Local JSON and Cloudflare D1)
-      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 6/6:* 💾 Saving metadata to D1 (Part ${partNum}/${chunks.length})...`);
+      // 6. Save Metadata (Local JSON only)
+      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 6/6:* 💾 Saving metadata (Part ${partNum}/${chunks.length})...`);
       const fileIds = chunks[i].map(v => v.fileId);
       const mediaFiles = chunks[i].map(v => ({ fileId: v.fileId, type: v.type || 'video' }));
       
@@ -561,51 +559,17 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
         fileIds,
         mediaFiles,
         duration: 'Batch',
-        link: videoLink,
+        link: embedUrls[0] || '',
         embedUrl: embedUrlsString
       });
-
-      // Cloudflare D1 Database via Pages API
-      try {
-        const postPayload = {
-          id: chunkSlug,
-          title: chunkCaption,
-          description: description,
-          thumbnail: thumbnailsString,
-          preview: localPreviewPath ? `assets/previews/${chunkSlug}.mp4` : '',
-          duration: 'Batch',
-          views: 1500,
-          category: detectCategory(chunkCaption),
-          tags: ['entertainment', 'viral', 'trending'],
-          telegramFileId: firstVideo.fileId,
-          embedUrl: embedUrlsString,
-          date: new Date().toISOString().split('T')[0]
-        };
-
-        const d1Res = await axios.post(`${config.siteUrl}/api/admin/posts`, postPayload, {
-          headers: {
-            'Authorization': `Bearer ${config.githubToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!d1Res.data || !d1Res.data.ok) {
-          console.error("⚠️ Cloudflare D1 rejected metadata:", d1Res.data?.error || 'unknown');
-        } else {
-          console.log(`✅ Metadata successfully saved to Cloudflare D1 for ${chunkSlug}`);
-        }
-      } catch (d1Err) {
-        console.error("⚠️ Failed to sync metadata to Cloudflare D1:", d1Err.message);
-      }
     }
 
-    await bot.editMessageText(formatMessage(config.messages.success, { TITLE: caption, LINK: firstVideoLink }) + `\n\n*Total Parts Published:* ${chunks.length}`, {
+    await bot.editMessageText(`✅ *Video successfully published!*\n\n📢 *Title:* ${caption}\n\n*Total Parts Published:* ${chunks.length}`, {
       chat_id: chatId,
       message_id: processingMsg.message_id,
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🌐 View on Website', url: firstVideoLink }],
           [{ text: '🆓 Free Channel', url: `https://t.me/${config.freeChannelUsername}` }],
           [{ text: '💎 Premium Channel', url: config.premiumInviteLink }]
         ]

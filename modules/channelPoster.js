@@ -183,14 +183,35 @@ function escapeMd(s) {
   return String(s || '').replace(/([_*`\[\]()~>#+\-=|{}.!])/g, '\\$1').slice(0, 800);
 }
 
+const axios = require('axios');
+
+async function shortenWithSub2Unlock(destinationUrl) {
+  const apiToken = '1928ea306c31d979f4e10214f7f83b5ee586eaf2';
+  
+  const watchUrl = destinationUrl.replace('/e/', '/v/');
+  const tgjoin = 'https://omg10.com/4/10695679';
+  const ytsub1 = 'https://omg10.com/4/10712300';
+  
+  const apiUrl = `https://sub2unlock.me/api?api=${apiToken}&url=${encodeURIComponent(watchUrl)}&tgjoin=${encodeURIComponent(tgjoin)}&ytsub1=${encodeURIComponent(ytsub1)}&format=text`;
+  
+  try {
+    const res = await axios.get(apiUrl, { timeout: 8000 });
+    if (res.data && res.data.trim()) {
+      return res.data.trim();
+    }
+  } catch (err) {
+    console.error(`⚠️ sub2unlock shortening failed for ${watchUrl}:`, err.message);
+  }
+  return watchUrl;
+}
+
 /* ============================================
    MULTI-CHANNEL BROADCAST
    Posts the preview clip (or photo fallback) to:
      - every enabled "free" channel from channels.json (incl. legacy env one)
      - the Backup channel (BACKUP_CHANNEL_ID) — automatic mirror, ref=backup
-   Each channel gets its own delay + ref-tagged URL for attribution.
    ============================================ */
-async function broadcastToFreeChannels(bot, { localThumbPath, caption, videoLink, localPreviewPath }) {
+async function broadcastToFreeChannels(bot, { localThumbPath, caption, embedUrls = [], localPreviewPath }) {
   // Start with the registry's enabled channels...
   const channels = listChannels().filter(c => c.enabled);
 
@@ -201,7 +222,7 @@ async function broadcastToFreeChannels(bot, { localThumbPath, caption, videoLink
       username: config.backupChannelUsername || '',
       ref: 'backup',
       niche: 'backup',
-      delaySec: 90, // post backup a bit later so it's a true fallback signal
+      delaySec: 90,
       captionStyle: 'default',
       enabled: true,
       _source: 'env_backup'
@@ -213,31 +234,45 @@ async function broadcastToFreeChannels(bot, { localThumbPath, caption, videoLink
     return { results: [], total: 0, success: 0 };
   }
 
+  // Handle links shortening once for the broadcast
+  const validEmbedUrls = Array.isArray(embedUrls) ? embedUrls.filter(Boolean) : (embedUrls ? [embedUrls] : []);
+  console.log(`   ⏳ Shortening ${validEmbedUrls.length} links with sub2unlock.me...`);
+  
+  const shortLinks = [];
+  for (let idx = 0; idx < validEmbedUrls.length; idx++) {
+    const url = validEmbedUrls[idx];
+    const shortUrl = await shortenWithSub2Unlock(url);
+    shortLinks.push({
+      label: validEmbedUrls.length > 1 ? `🔓 Unlock Part ${idx + 1} 🍿` : '🔓 Unlock Video · බලන්න මෙතනින් 🍿',
+      url: shortUrl
+    });
+  }
+
   console.log(`\n📡 Broadcasting to ${channels.length} channel(s)...`);
   const results = [];
 
   for (const ch of channels) {
-    const refUrl = withRef(videoLink, ch.ref);
-    const caption2 = captionForStyle(ch.captionStyle, caption, refUrl);
-    // Beautiful button layout — Website is the primary action
-    const keyboard = {
-      inline_keyboard: [
-        [{ text: '🌐 Watch on Website · Site එකේ බලන්න ✨', url: refUrl }],
-        [
-          { text: '⭐ Premium', url: config.premiumInviteLink },
-          { text: '🦅 Main', url: `https://t.me/${config.mainChannelUsername || 'ukussa69new'}` }
-        ]
-      ]
-    };
+    const caption2 = captionForStyle(ch.captionStyle, caption);
+    
+    // Create keyboard dynamically for each channel post
+    const inlineKeyboard = [];
+    for (const item of shortLinks) {
+      inlineKeyboard.push([{ text: item.label, url: item.url }]);
+    }
+    inlineKeyboard.push([
+      { text: '⭐ Premium', url: config.premiumInviteLink },
+      { text: '🦅 Main', url: `https://t.me/${config.mainChannelUsername || 'ukussa69new'}` }
+    ]);
+    
+    const keyboard = { inline_keyboard: inlineKeyboard };
 
-    // Per-channel staggered delay to avoid all-at-once posts and Telegram flood limits
+    // Per-channel staggered delay
     const ms = Math.max(0, (ch.delaySec || 0) * 1000);
     if (ms > 0) {
       console.log(`   ⏳ [${ch.ref}] waiting ${ms / 1000}s before post...`);
       await delay(ms);
     }
 
-    // Per-channel post attempt: video → photo → text
     let result = { ref: ch.ref, channelId: ch.id, success: false };
 
     if (localPreviewPath && fs.existsSync(localPreviewPath)) {
@@ -270,7 +305,7 @@ async function broadcastToFreeChannels(bot, { localThumbPath, caption, videoLink
 
     try {
       const r = await bot.sendMessage(ch.id, caption2, {
-        parse_mode: 'HTML', disable_web_page_preview: false, reply_markup: keyboard
+        parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: keyboard
       });
       result = { ...result, success: true, type: 'text', messageId: r.message_id };
       console.log(`   ✅ [${ch.ref}] text-only posted`);
@@ -287,20 +322,17 @@ async function broadcastToFreeChannels(bot, { localThumbPath, caption, videoLink
   return { results, total: channels.length, success };
 }
 
-function captionForStyle(style, caption, videoLink) {
+function captionForStyle(style, caption) {
   switch ((style || 'default').toLowerCase()) {
     case 'short':
-      // Tight one-liner — works well for niche channels with fast-scrolling audiences
-      return `🔥 <b>${escapeHtml(caption)}</b>\n👉 ${videoLink}`;
+      return `🔥 <b>${escapeHtml(caption)}</b>`;
     case 'longform':
-      // Verbose — better SEO on Telegram in-app search
       return `🎬 <b>${escapeHtml(caption)}</b>\n\n` +
-             `New exclusive video just dropped. Watch the full version free — only takes 2 quick clicks to unlock.\n\n` +
-             `🔓 Unlock now: ${videoLink}\n\n` +
+             `New exclusive video just dropped. Watch the full version free by clicking the link below.\n\n` +
              `⭐ Hate ads? Get Premium (no ads, daily new uncut videos)`;
     case 'default':
     default:
-      return generateChannelCaption(caption, videoLink);
+      return generateChannelCaption(caption);
   }
 }
 

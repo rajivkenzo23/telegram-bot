@@ -71,23 +71,19 @@ function generateDescription(caption) {
   return descriptions[Math.floor(Math.random() * descriptions.length)];
 }
 
-function generateChannelCaption(caption, videoLink) {
+function generateChannelCaption(caption) {
   const safe = escapeHtml(caption);
   return (
-    `🔥 <b>NEW VIRAL VIDEO · අලුත් Viral Video එකක්!</b>\n\n` +
+    `🔥 <b>NEW LEAKED VIDEO · අලුත්ම වීඩියෝ එක!</b>\n\n` +
     `🎬 <b>${safe}</b>\n\n` +
     `━━━━━━━━━━━━━━━\n` +
     `🇬🇧  <b>How to watch:</b>\n` +
-    `1️⃣ Tap the website button below 👇\n` +
-    `2️⃣ Complete 2 quick sponsor clicks\n` +
-    `3️⃣ Our bot DMs you the full HD video\n\n` +
+    `1️⃣ Click the unlock button below to watch 👇\n` +
+    `2️⃣ Join/Subscribe to access the video link!\n\n` +
     `🇱🇰  <b>බලන්නේ කොහොමද:</b>\n` +
-    `1️⃣ පහත Website button එක click කරන්න 👇\n` +
-    `2️⃣ Sponsor link 2ක open කරන්න\n` +
-    `3️⃣ Bot එක ඔයාට full HD video එක යවයි\n` +
-    `━━━━━━━━━━━━━━━\n\n` +
-    `⭐ Ads නැතුව, uncut, FULL HD ඕනේද? · Want it ad-free?\n` +
-    `→ Premium · ${config.premiumStarsPrice} Telegram Stars ⭐`
+    `1️⃣ පහත Button එක click කර unlock කරන්න 👇\n` +
+    `2️⃣ Channel එකට join වෙලා වීඩියෝ එක ලබාගන්න!\n` +
+    `━━━━━━━━━━━━━━━`
   );
 }
 

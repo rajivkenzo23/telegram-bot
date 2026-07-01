@@ -561,7 +561,7 @@ function generateWatchPage(slug, video) {
                 images.forEach((imgUrl) => {
                   const imgCard = document.createElement('div');
                   imgCard.style.cssText = 'position:relative; aspect-ratio:1/1; border-radius:var(--radius-md); overflow:hidden; border:1px solid var(--border-subtle); background:#111; cursor:zoom-in; transition:transform 0.2s;';
-                  imgCard.innerHTML = `<img src="/${imgUrl}" style="width:100%; height:100%; object-fit:cover; display:block; filter:brightness(0.85); transition:filter 0.2s;">`;
+                  imgCard.innerHTML = '<img src="/' + imgUrl + '" style="width:100%; height:100%; object-fit:cover; display:block; filter:brightness(0.85); transition:filter 0.2s;">';
                   
                   // Hover effects
                   imgCard.onmouseenter = () => {

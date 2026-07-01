@@ -92,13 +92,13 @@ async function uploadToGithub(slug, caption, description, thumbnailBase64, thumb
   return await _githubUploader.uploadVideoFiles(slug, caption, description, thumbnailBase64, thumbExtension, duration, state, localPreviewPath);
 }
 
-async function postToFreeChannel(bot, localThumbPath, caption, videoLink, localPreviewPath) {
+async function postToFreeChannel(bot, localThumbPath, caption, embedUrls, localPreviewPath) {
   if (!_channelPoster) _channelPoster = require('./modules/channelPoster');
   // Use the multi-channel broadcaster — falls back to single-channel if no channels.json
   return await _channelPoster.broadcastToFreeChannels(bot, {
     localThumbPath,
     caption,
-    videoLink,
+    embedUrls,
     localPreviewPath
   });
 }
