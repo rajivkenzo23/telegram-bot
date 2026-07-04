@@ -84,13 +84,7 @@ exec(`"${ffmpegBinPath}" -version`, (err, stdout) => {
   }
 });
 
-let _githubUploader = null;
 let _channelPoster = null;
-
-async function uploadToGithub(slug, caption, description, thumbnailBase64, thumbExtension, duration, state, localPreviewPath) {
-  if (!_githubUploader) _githubUploader = require('./modules/githubUploader');
-  return await _githubUploader.uploadVideoFiles(slug, caption, description, thumbnailBase64, thumbExtension, duration, state, localPreviewPath);
-}
 
 async function postToFreeChannel(bot, localThumbPath, caption, embedUrls, localPreviewPath) {
   if (!_channelPoster) _channelPoster = require('./modules/channelPoster');
@@ -104,10 +98,12 @@ async function postToFreeChannel(bot, localThumbPath, caption, embedUrls, localP
 }
 
 const { processVideo } = require('./modules/videoProcessor');
-initAdminHandler(bot, processVideo, uploadToGithub);
+initAdminHandler(bot, processVideo);
 initUserHandler(bot);
 
-try {
+if (!config.siteUrl) {
+  console.log('Retention system disabled because SITE_URL is empty');
+} else try {
   const { initRetentionSystem } = require('./modules/retentionLoop');
   initRetentionSystem(bot);
 } catch (e) {
@@ -115,7 +111,9 @@ try {
 }
 
 // Periodic stats snapshot → assets/data/stats.json on GitHub (admin dashboard reads it)
-try {
+if (!config.legacySitePublish) {
+  console.log('Legacy GitHub/site publishing disabled');
+} else try {
   const { startPeriodic } = require('./modules/statsPublisher');
   const { uploadFile } = require('./modules/githubUploader');
   startPeriodic(uploadFile, 5 * 60 * 1000);

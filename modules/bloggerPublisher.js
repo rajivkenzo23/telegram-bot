@@ -5,7 +5,7 @@ async function publishToBlogger(title, slug, description, embedUrl) {
   const clientSecret = process.env.BLOGGER_CLIENT_SECRET;
   const refreshToken = process.env.BLOGGER_REFRESH_TOKEN;
   const blogId = process.env.BLOGGER_BLOG_ID;
-  const siteUrl = process.env.SITE_URL || 'https://videoslk.eu.cc';
+  const siteUrl = (process.env.SITE_URL || '').trim();
 
   if (!clientId || !clientSecret || !refreshToken || !blogId) {
     console.warn("⚠️ Blogger API credentials not fully configured in .env. Skipping Blogger publish.");

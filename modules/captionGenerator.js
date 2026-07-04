@@ -62,10 +62,10 @@ function generateSlug(caption) {
 
 function generateDescription(caption) {
   const descriptions = [
-    `${caption} — Full video unlock කරගන්න website එකට ගිහින් steps follow කරන්න.`,
+    `${caption} — Full video unlock කරගන්න free channel එකේ button එක click කරන්න.`,
     `මේ video එක miss කරන්න එපා! ${caption}. Full version එක Telegram bot එකෙන් ගන්න.`,
     `${caption}. Preview බලලා full video එක unlock කරගන්න! 🔓`,
-    `Trending video! ${caption}. Website එකෙන් unlock කරගන්න.`
+    `Trending video! ${caption}. Free channel එකේ unlock button එකෙන් බලන්න.`
   ];
 
   return descriptions[Math.floor(Math.random() * descriptions.length)];

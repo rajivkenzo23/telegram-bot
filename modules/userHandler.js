@@ -15,6 +15,10 @@ const { checkMembership, buildGatePrompt, clearMembershipCache } = require('./fo
 // to know which video they were trying to unlock. Keyed by userId.
 const pendingDeliveries = new Map();
 
+function freeChannelUrl() {
+    return config.freeChannelInviteLink || `https://t.me/${config.freeChannelUsername}`;
+}
+
 function recordRefDelivery(ref) {
     if (!ref) return;
     try { recordChannelDelivery(ref); } catch (_) {}
@@ -75,7 +79,7 @@ function initUserHandler(bot) {
                         inline_keyboard: [
                             [{ text: '📊 Stats', callback_data: 'admin_stats' }],
                             [{ text: '📋 Video List', callback_data: 'admin_list' }],
-                            [{ text: '🌐 Website', url: config.siteUrl }]
+                            [{ text: '🆓 Free Channel', url: freeChannelUrl() }]
                         ]
                     }
                 }
@@ -213,9 +217,9 @@ function initUserHandler(bot) {
                         await deliverVideo(bot, chatId, query.from.id, pending.videoId, pending.firstName, pending.ref);
                     } else {
                         await bot.sendMessage(chatId,
-                            '✅ *All channels joined!* Open a watch page from the website to get your video.\n\n' +
-                            '✅ *සියලුම channels join කරා!* Website එකෙන් video එකක් unlock කරන්න.',
-                            { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '🌐 Open Website', url: config.siteUrl }]] } });
+                            '✅ *All channels joined!* Use the latest unlock buttons in the free channel.\n\n' +
+                            '✅ *සියලුම channels join කරා!* Free channel එකේ අලුත් unlock buttons use කරන්න.',
+                            { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '🆓 Open Free Channel', url: freeChannelUrl() }]] } });
                     }
                 } else {
                     await bot.answerCallbackQuery(query.id, {
@@ -302,12 +306,12 @@ function initUserHandler(bot) {
         const chatId = msg.chat.id;
         await bot.sendMessage(chatId,
             `🎬 *VideoSLK Bot*\n\n` +
-            `Videos unlock කරන්න website එකට යන්න:\n👉 ${config.siteUrl}\n\n` +
+            `Videos unlock කරන්න free channel එකේ buttons use කරන්න.\n\n` +
             `⭐ /premium — get uncut HD videos with no ads`,
             {
                 parse_mode: 'Markdown',
                 reply_markup: { inline_keyboard: [
-                    [{ text: '🌐 Website', url: config.siteUrl }],
+                    [{ text: '🆓 Free Channel', url: freeChannelUrl() }],
                     [{ text: '⭐ Get Premium', callback_data: 'show_premium' }]
                 ]}
             }
@@ -337,7 +341,7 @@ async function handleUnlockDelivery(bot, chatId, userId, startParam, firstName) 
                     parse_mode: 'Markdown',
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '🌐 Go to website', url: config.siteUrl }],
+                            [{ text: '🆓 Free Channel', url: freeChannelUrl() }],
                             [{ text: '⭐ Skip ads — Premium', callback_data: 'show_premium' }]
                         ]
                     }
@@ -391,7 +395,7 @@ async function deliverVideo(bot, chatId, userId, videoId, firstName, ref) {
     if (!video || mediaFiles.length === 0) {
         await bot.sendMessage(chatId, formatMessage(config.messages.noVideo), {
             parse_mode: 'Markdown',
-            reply_markup: { inline_keyboard: [[{ text: '🌐 Website', url: config.siteUrl }]] }
+            reply_markup: { inline_keyboard: [[{ text: '🆓 Free Channel', url: freeChannelUrl() }]] }
         });
         return;
     }

@@ -5,7 +5,7 @@ const config = {
   botToken: (process.env.BOT_TOKEN || "").trim(),
   adminId: parseInt(process.env.ADMIN_ID, 10),
 
-  // FREE channel: receives 5-8s preview + website link
+  // FREE channel: receives preview/photo + sub2unlock.me Streamtape links
   freeChannelId: process.env.FREE_CHANNEL_ID,
   freeChannelUsername: process.env.FREE_CHANNEL_USERNAME || 'ukussafree69',
   freeChannelInviteLink: process.env.FREE_CHANNEL_INVITE_LINK || '',
@@ -31,7 +31,7 @@ const config = {
   // Defaults to Main + Free + Backup. Set FORCE_SUB=0 to disable entirely.
   forceSubscribe: process.env.FORCE_SUB !== '0',
 
-  // HMAC secret shared with Cloudflare Pages Function (/api/unlock)
+  // Legacy custom-site unlock config. Not required for the current Streamtape + sub2unlock flow.
   unlockHmacSecret: process.env.UNLOCK_HMAC_SECRET || '',
   unlockTokenMaxAgeSec: parseInt(process.env.UNLOCK_TOKEN_MAX_AGE_SEC || '600', 10),
 
@@ -42,7 +42,8 @@ const config = {
   githubRepo: process.env.GITHUB_REPO || 'rajivkenzo23/VideoLK',
   githubBranch: process.env.GITHUB_BRANCH || 'main',
 
-  siteUrl: process.env.SITE_URL || 'https://videoslk.eu.cc',
+  legacySitePublish: process.env.LEGACY_SITE_PUBLISH === '1',
+  siteUrl: (process.env.SITE_URL || '').trim(),
   botLink: process.env.BOT_LINK || 'https://t.me/ukussa_69_bot',
   telegramApiBaseUrl: process.env.TELEGRAM_API_BASE_URL || 'https://api.telegram.org',
 
@@ -53,22 +54,20 @@ const config = {
     welcome:
       '🎬 *VideoSLK — Exclusive Videos*\n\n' +
       'මේ bot එකෙන් exclusive videos unlock කරගන්න!\n\n' +
-      '🔥 Watch previews: {{SITE_URL}}\n' +
+      '🔥 Watch previews in the free channel\n' +
       '🆓 Free channel: @{{FREE_CHANNEL}}\n\n' +
-      '⬇️ Video unlock කරගන්න website එකට යන්න!',
+      '⬇️ Video unlock buttons free channel එකේ තියෙනවා!',
 
     videoSent:
       '🎬 *ඔබේ Video මෙන්න!*\n\n' +
       '✅ Full video ඉහතින් බලන්න\n\n' +
-      '🔥 තව videos බලන්න:\n' +
-      '👉 {{SITE_URL}}\n\n' +
+      '🔥 තව videos බලන්න free channel එකට join වෙන්න.\n\n' +
       '🆓 Free: @{{FREE_CHANNEL}}',
 
     noVideo:
       '❌ *Video Not Found*\n\n' +
       'මේ video එක හමු නොවුනා.\n' +
-      'Website එකෙන් නැවත try කරන්න!\n\n' +
-      '👉 {{SITE_URL}}',
+      'Free channel එකේ අලුත් unlock button එකෙන් නැවත try කරන්න!',
 
     adminWelcome:
       '🔧 *Admin Panel*\n\n' +
@@ -87,7 +86,7 @@ const config = {
     processing:
       '⏳ *Processing...*\n\n' +
       '🖼 Thumbnail downloading...\n' +
-      '📤 Website updating...\n' +
+      '🎥 Streamtape links preparing...\n' +
       '📢 Free channel posting...\n\n' +
       'මොහොතක් ඉන්න...',
 
@@ -95,8 +94,7 @@ const config = {
       '✅ *Video Successfully Added!*\n\n' +
       '🎬 Title: {{TITLE}}\n' +
       '🔗 Link: {{LINK}}\n\n' +
-      '🆓 Free channel: ✅\n' +
-      '🌐 Website: ✅',
+      '🆓 Free channel: ✅',
 
     error:
       '❌ *Error Occurred*\n\n' +
@@ -125,8 +123,7 @@ const config = {
     tokenInvalid:
       '⚠️ *Invalid or expired link*\n\n' +
       'මේ unlock link එක expire වෙලා හෝ වැරදියි.\n' +
-      'Website එකේ නැවත 2-click එක try කරන්න:\n' +
-      '👉 {{SITE_URL}}',
+      'Free channel එකේ අලුත් unlock button එකෙන් නැවත try කරන්න.',
 
     rateLimited:
       '⏳ *Slow down!*\n\n' +
@@ -140,15 +137,14 @@ function validateConfig() {
     'botToken',
     'adminId',
     'freeChannelId',
-    'premiumInviteLink',
-    'githubToken'
+    'premiumInviteLink'
   ];
 
   const recommended = [
     ['premiumChannelId', 'PREMIUM_CHANNEL_ID — auto-post full video to premium channel'],
     ['mainChannelId', 'MAIN_CHANNEL_ID — required for force-subscribe gate'],
     ['backupChannelId', 'BACKUP_CHANNEL_ID — backup post mirror + force-subscribe gate'],
-    ['unlockHmacSecret', 'UNLOCK_HMAC_SECRET — required to validate unlock tokens (anti-bypass)']
+    ['unlockHmacSecret', 'UNLOCK_HMAC_SECRET — only needed if legacy custom-site unlock is re-enabled']
   ];
   recommended.forEach(([key, hint]) => {
     if (!config[key]) console.warn(`⚠️  Missing ${hint}`);

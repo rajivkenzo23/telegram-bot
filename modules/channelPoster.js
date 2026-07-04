@@ -1,7 +1,7 @@
 /* ============================================
    VideoSLK Bot — Channel Posters
    - Premium channel: full video, silent, no ads
-   - Free channel: short preview clip + website link
+   - Free channel: preview/photo + sub2unlock.me Streamtape links
    ============================================ */
 
 const fs = require('fs');
@@ -115,68 +115,12 @@ async function postToPremiumChannelBatch(bot, videos, caption) {
 }
 
 /* ============================================
-   FREE CHANNEL — short preview clip + website CTA
-   Posts preview video if available; falls back to photo.
+   FREE CHANNEL — legacy compatibility wrapper
+   Delegates to the current multi-channel sub2unlock.me broadcaster.
    ============================================ */
 async function postToFreeChannel(bot, localThumbPath, caption, videoLink, localPreviewPath) {
-  console.log(`\n📢 Free channel post scheduled`);
-  console.log(`   ⏳ Waiting ${FREE_CHANNEL_POST_DELAY_MS / 1000}s for site deployment...`);
-  await delay(FREE_CHANNEL_POST_DELAY_MS);
-
-  const channelCaption = generateChannelCaption(caption, videoLink);
-  const keyboard = {
-    inline_keyboard: [
-      [{ text: '🌐 Watch on Website · Site එකේ බලන්න ✨', url: videoLink }],
-      [{ text: '⭐ Join Premium (No Ads)', url: config.premiumInviteLink }]
-    ]
-  };
-
-  // 1) Try video preview clip (highest engagement)
-  if (localPreviewPath && fs.existsSync(localPreviewPath)) {
-    try {
-      console.log(`   🎬 Posting preview clip to @${config.freeChannelUsername}`);
-      const result = await bot.sendVideo(config.freeChannelId, localPreviewPath, {
-        caption: channelCaption,
-        parse_mode: 'HTML',
-        supports_streaming: true,
-        reply_markup: keyboard
-      });
-      console.log(`   ✅ Free channel preview posted! Msg ID: ${result.message_id}`);
-      return { success: true, messageId: result.message_id, type: 'video' };
-    } catch (err) {
-      console.error(`   ⚠️  Preview video post failed, falling back to photo:`, err.message);
-    }
-  }
-
-  // 2) Fall back to thumbnail photo
-  try {
-    if (!localThumbPath || !fs.existsSync(localThumbPath)) {
-      throw new Error('Thumbnail file not found');
-    }
-    const result = await bot.sendPhoto(config.freeChannelId, localThumbPath, {
-      caption: channelCaption,
-      parse_mode: 'HTML',
-      reply_markup: keyboard
-    });
-    console.log(`   ✅ Free channel photo posted! Msg ID: ${result.message_id}`);
-    return { success: true, messageId: result.message_id, type: 'photo' };
-  } catch (err) {
-    console.error(`   ❌ Photo post failed:`, err.message);
-  }
-
-  // 3) Final fallback: text-only with link preview
-  try {
-    const result = await bot.sendMessage(config.freeChannelId, channelCaption, {
-      parse_mode: 'HTML',
-      disable_web_page_preview: false,
-      reply_markup: keyboard
-    });
-    console.log(`   ✅ Free channel text-only posted.`);
-    return { success: true, messageId: result.message_id, type: 'text' };
-  } catch (e) {
-    console.error(`   ❌ Free text post failed:`, e.message);
-    return { success: false, error: e.message };
-  }
+  const embedUrls = Array.isArray(videoLink) ? videoLink : [videoLink].filter(Boolean);
+  return broadcastToFreeChannels(bot, { localThumbPath, caption, embedUrls, localPreviewPath });
 }
 
 function escapeMd(s) {
@@ -186,11 +130,15 @@ function escapeMd(s) {
 const axios = require('axios');
 
 async function shortenWithSub2Unlock(destinationUrl) {
-  const apiToken = '1928ea306c31d979f4e10214f7f83b5ee586eaf2';
-  
+  const apiToken = process.env.SUB2UNLOCK_API_TOKEN;
   const watchUrl = destinationUrl.replace('/e/', '/v/');
   const tgjoin = 'https://omg10.com/4/10695679';
   const ytsub1 = 'https://omg10.com/4/10712300';
+
+  if (!apiToken) {
+    console.error('⚠️ SUB2UNLOCK_API_TOKEN is not configured; posting raw Streamtape URL.');
+    return watchUrl;
+  }
   
   const apiUrl = `https://sub2unlock.me/api?api=${apiToken}&url=${encodeURIComponent(watchUrl)}&tgjoin=${encodeURIComponent(tgjoin)}&ytsub1=${encodeURIComponent(ytsub1)}&format=text`;
   

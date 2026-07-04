@@ -26,8 +26,13 @@ const PROCESSED_DIR = path.join(BOT_ROOT, 'processed_zips');
 const TEMP_DIR = path.join(BOT_ROOT, 'temp', 'unzip_temp');
 const OUTPUT_FILE = path.join(BOT_ROOT, 'streamtape_links_output.txt');
 
-const STREAMTAPE_LOGIN = process.env.STREAMTAPE_LOGIN || '15a6b6d591b99774fe65';
-const STREAMTAPE_KEY = process.env.STREAMTAPE_KEY || 'De0xQO7DjxUkpwx';
+const STREAMTAPE_LOGIN = process.env.STREAMTAPE_LOGIN;
+const STREAMTAPE_KEY = process.env.STREAMTAPE_KEY;
+
+if (!STREAMTAPE_LOGIN || !STREAMTAPE_KEY) {
+  err('STREAMTAPE_LOGIN and STREAMTAPE_KEY must be configured in .env before uploading.');
+  process.exit(1);
+}
 
 function log(msg) { console.log(`[ZipUploader] ${msg}`); }
 function err(msg) { console.error(`[ZipUploader] ❌ ${msg}`); }

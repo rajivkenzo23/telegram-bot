@@ -29,6 +29,10 @@ const RETENTION_CONFIG = {
 // ===== Track Sent Messages =====
 const sentMessages = {};
 
+function freeChannelUrl() {
+    return config.freeChannelInviteLink || `https://t.me/${config.freeChannelUsername}`;
+}
+
 // ===== Check Quiet Hours =====
 function isQuietHours() {
     const hour = new Date().getHours();
@@ -287,7 +291,7 @@ function initRetentionSystem(bot) {
         await bot.sendMessage(msg.chat.id, '📣 Starting broadcast...');
 
         const result = await broadcastMessage(bot, text, [
-            [{ text: '🌐 Visit Website', url: config.siteUrl }]
+            [{ text: '🆓 Open Free Channel', url: freeChannelUrl() }]
         ]);
 
         await bot.sendMessage(msg.chat.id,

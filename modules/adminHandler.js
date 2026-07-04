@@ -7,7 +7,7 @@ const { config, formatMessage } = require('../config');
 const { generateCaption, generateSlug, generateDescription } = require('./captionGenerator');
 const { addVideo } = require('./dataManager');
 const { downloadTelegramFile } = require('./telegramDownloader');
-const { postToPremiumChannelBatch, postToFreeChannel } = require('./channelPoster');
+const { postToPremiumChannelBatch, broadcastToFreeChannels } = require('./channelPoster');
 
 const adminState = {};
 
@@ -27,7 +27,7 @@ function sendMainKeyboard(bot, chatId, text = "👋 Welcome back, Admin. What wo
   });
 }
 
-function initAdminHandler(bot, processVideo, uploadToGithub) {
+function initAdminHandler(bot, processVideo) {
   // Admin Start Keyboard
   bot.onText(/^\/start$/, async (msg) => {
     if (!isAdmin(msg.from.id)) return;
@@ -179,7 +179,7 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
         bot.sendMessage(chatId, '✅ Streamtape links detected. Starting publishing process...', {
           reply_markup: { remove_keyboard: true }
         });
-        await processAdminBatch(bot, chatId, processVideo, uploadToGithub);
+        await processAdminBatch(bot, chatId, processVideo);
         return;
       }
 
@@ -205,7 +205,7 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
         bot.sendMessage(chatId, '✅ Auto preview selected. Starting process...', {
           reply_markup: { remove_keyboard: true }
         });
-        await processAdminBatch(bot, chatId, processVideo, uploadToGithub);
+        await processAdminBatch(bot, chatId, processVideo);
       } else if (text === '🖼 Upload Custom Preview') {
         state.step = 'waiting_custom_preview';
         bot.sendMessage(chatId, '🖼 Please send the custom preview image or video now.', {
@@ -284,7 +284,7 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
       bot.sendMessage(chatId, "✅ Custom preview received. Starting process...", {
         reply_markup: { remove_keyboard: true }
       });
-      await processAdminBatch(bot, chatId, processVideo, uploadToGithub);
+      await processAdminBatch(bot, chatId, processVideo);
     }
   }
 
@@ -306,7 +306,7 @@ function initAdminHandler(bot, processVideo, uploadToGithub) {
 
 const { formatDuration, formatDurationISO } = require('./videoProcessor');
 
-async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
+async function processAdminBatch(bot, chatId, processVideo) {
   const state = adminState[chatId];
   if (!state || state.step !== 'ready') return;
 
@@ -406,12 +406,12 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
       }
 
       const description = generateDescription(chunkCaption);
-      const videoLink = `${config.siteUrl}/watch/${chunkSlug}.html`;
+      const videoLink = config.siteUrl ? `${config.siteUrl}/watch/${chunkSlug}.html` : '';
       
       if (i === 0) firstVideoLink = videoLink;
 
-      // 4. Publish to Website & Streamtape
-      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 🌐 Publishing watch page (Part ${partNum}/${chunks.length})...`);
+      // 4. Upload/collect Streamtape links
+      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 4/6:* 🎥 Preparing Streamtape links (Part ${partNum}/${chunks.length})...`);
       
       const embedUrls = [];
       const thumbnails = [];
@@ -455,8 +455,10 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
             
             if (partThumbBase64) {
               try {
-                const { uploadFile } = require('./githubUploader');
-                await uploadFile(partThumbPath, partThumbBase64, `Part Thumb: ${chunkSlug} Part ${vIdx + 1}`, true);
+                if (config.legacySitePublish) {
+                  const { uploadFile } = require('./githubUploader');
+                  await uploadFile(partThumbPath, partThumbBase64, `Part Thumb: ${chunkSlug} Part ${vIdx + 1}`, true);
+                }
                 thumbnails.push(partThumbPath);
               } catch (githubErr) {
                 console.error(`⚠️ GitHub thumbnail upload failed for part ${vIdx + 1}:`, githubErr.message);
@@ -525,8 +527,10 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
             
             if (partThumbBase64) {
               try {
-                const { uploadFile } = require('./githubUploader');
-                await uploadFile(partThumbPath, partThumbBase64, `Part Thumb: ${chunkSlug} Part ${vIdx + 1}`, true);
+                if (config.legacySitePublish) {
+                  const { uploadFile } = require('./githubUploader');
+                  await uploadFile(partThumbPath, partThumbBase64, `Part Thumb: ${chunkSlug} Part ${vIdx + 1}`, true);
+                }
                 thumbnails.push(partThumbPath);
               } catch (githubErr) {
                 console.error(`⚠️ GitHub thumbnail upload failed for part ${vIdx + 1}:`, githubErr.message);
@@ -542,9 +546,14 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
       const embedUrlsString = embedUrls.join(',');
       const thumbnailsString = thumbnails.join(',');
 
-      // 5. Post to Free Channel
-      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 5/6:* 📢 Posting to free channel (Part ${partNum}/${chunks.length})...`);
-      await postToFreeChannel(bot, localThumbPath, chunkCaption, embedUrls, localPreviewPath);
+      // 5. Post sub2unlock.me links to Free/Backup channels
+      await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 5/6:* 📢 Posting sub2unlock.me links to Telegram (Part ${partNum}/${chunks.length})...`);
+      await broadcastToFreeChannels(bot, {
+        localThumbPath,
+        caption: chunkCaption,
+        embedUrls,
+        localPreviewPath
+      });
 
       // 6. Save Metadata (Local JSON only)
       await updateMsg(bot, chatId, processingMsg.message_id, `⏳ *Step 6/6:* 💾 Saving metadata (Part ${partNum}/${chunks.length})...`);
@@ -579,7 +588,9 @@ async function processAdminBatch(bot, chatId, processVideo, uploadToGithub) {
     cleanupTempFiles(slug);
     delete adminState[chatId];
     sendMainKeyboard(bot, chatId, "✅ Upload process finished successfully.");
-    try { require('./statsPublisher').publishNow(); } catch (_) {}
+    if (config.legacySitePublish) {
+      try { require('./statsPublisher').publishNow(); } catch (_) {}
+    }
   } catch (error) {
     bot.editMessageText(`❌ *Error:*\n${error.message}`, { chat_id: chatId, message_id: processingMsg.message_id, parse_mode: 'Markdown' });
     cleanupTempFiles(slug);
@@ -653,48 +664,17 @@ function cleanupTempFiles(slug) {
   } catch (_) {}
 }
 
-async function downloadTelegramThumbnail(bot, fileId, slug) {
-  const tempDir = path.join(__dirname, '../temp');
-  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-  const localPath = path.join(tempDir, `${slug}_thumb.jpg`);
-  
-  try {
-    const file = await bot.getFile(fileId);
-    const url = `https://api.telegram.org/file/bot${config.botToken}/${file.file_path}`;
-    
-    return new Promise((resolve, reject) => {
-      const writer = fs.createWriteStream(localPath);
-      const protocol = url.startsWith('https') ? https : http;
-      protocol.get(url, (res) => {
-        if (res.statusCode !== 200) {
-          writer.destroy();
-          try { fs.unlinkSync(localPath); } catch (_) {}
-          return reject(new Error(`HTTP ${res.statusCode}`));
-        }
-        res.pipe(writer);
-        writer.on('finish', () => {
-          writer.close();
-          const buf = fs.readFileSync(localPath);
-          const base64 = buf.toString('base64');
-          try { fs.unlinkSync(localPath); } catch (_) {} // delete local file
-          resolve({ base64 });
-        });
-        writer.on('error', reject);
-      }).on('error', reject);
-    });
-  } catch (err) {
-    console.error(`⚠️ Failed to download telegram thumbnail for ${slug}:`, err.message);
-    throw err;
-  }
-}
 
 async function updateMsg(bot, chatId, msgId, text) {
   try { await bot.editMessageText(text, { chat_id: chatId, message_id: msgId, parse_mode: 'Markdown' }); } catch (_) {}
 }
 
 async function uploadToStreamtape(filePath, filename) {
-  const login = process.env.STREAMTAPE_LOGIN || '15a6b6d591b99774fe65';
-  const key = process.env.STREAMTAPE_KEY || 'De0xQO7DjxUkpwx';
+  const login = process.env.STREAMTAPE_LOGIN;
+  const key = process.env.STREAMTAPE_KEY;
+  if (!login || !key) {
+    throw new Error('STREAMTAPE_LOGIN and STREAMTAPE_KEY must be configured in .env');
+  }
 
   const getUrlRes = await axios.get(`https://api.streamtape.com/file/ul?login=${login}&key=${key}`);
   if (!getUrlRes.data || getUrlRes.data.status !== 200) {
@@ -722,8 +702,9 @@ async function uploadToStreamtape(filePath, filename) {
 }
 
 async function getStreamtapeFileInfo(fileId) {
-  const login = process.env.STREAMTAPE_LOGIN || '15a6b6d591b99774fe65';
-  const key = process.env.STREAMTAPE_KEY || 'De0xQO7DjxUkpwx';
+  const login = process.env.STREAMTAPE_LOGIN;
+  const key = process.env.STREAMTAPE_KEY;
+  if (!login || !key) return null;
   
   try {
     const res = await axios.get(`https://api.streamtape.com/file/info?login=${login}&key=${key}&file=${fileId}`);
