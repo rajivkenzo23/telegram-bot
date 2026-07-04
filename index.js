@@ -3,7 +3,10 @@ const dns = require('dns');
 if (typeof dns.setDefaultResultOrder === 'function') {
   dns.setDefaultResultOrder('ipv4first');
 }
-const TelegramBot = require('node-telegram-bot-api');
+const TelegramBotModule = require('node-telegram-bot-api');
+const TelegramBot = typeof TelegramBotModule === 'function'
+  ? TelegramBotModule
+  : (TelegramBotModule.default || TelegramBotModule.TelegramBot || TelegramBotModule);
 const { config, validateConfig } = require('./config');
 const { initAdminHandler } = require('./modules/adminHandler');
 const { initUserHandler } = require('./modules/userHandler');
