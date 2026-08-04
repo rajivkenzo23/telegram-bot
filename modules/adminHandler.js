@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const FormData = require('form-data');
+const { execSync } = require('child_process');
 const { config } = require('../config');
 const { generateCaption, generateSlug } = require('./captionGenerator');
 const { downloadTelegramFile } = require('./telegramDownloader');
@@ -44,7 +45,6 @@ function sortedFiles(folderPath, extSet) {
 }
 
 function extractZip(zipPath, destDir) {
-  const { execSync } = require('child_process');
   if (process.platform === 'win32') {
     execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force"`, { stdio: 'ignore' });
   } else {
@@ -55,6 +55,30 @@ function extractZip(zipPath, destDir) {
     }
   }
   try { fs.unlinkSync(zipPath); } catch (_) {}
+}
+
+function generateRandomVideoFrame(videoPath, destPath) {
+  try {
+    let duration = 30;
+    try {
+      execSync(`ffmpeg -i "${videoPath}"`, { stdio: 'pipe' });
+    } catch (e) {
+      const out = e.stderr ? e.stderr.toString() : '';
+      const match = out.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/i);
+      if (match) {
+        duration = parseInt(match[1], 10) * 3600 + parseInt(match[2], 10) * 60 + parseFloat(match[3]);
+      }
+    }
+    const randomSec = Math.floor(Math.random() * (duration * 0.7) + (duration * 0.15));
+    execSync(`ffmpeg -y -ss ${randomSec} -i "${videoPath}" -vframes 1 -q:v 2 "${destPath}"`, { stdio: 'ignore' });
+    if (fs.existsSync(destPath) && fs.statSync(destPath).size > 0) {
+      console.log(`📸 Extracted random video frame at ${randomSec}s (${(fs.statSync(destPath).size / 1024).toFixed(1)} KB)`);
+      return destPath;
+    }
+  } catch (err) {
+    console.error(`❌ Frame extraction failed: ${err.message}`);
+  }
+  return null;
 }
 
 async function uploadToStreamtape(filePath, filename) {
@@ -110,7 +134,6 @@ async function uploadToStreamtapeWithRetry(filePath, filename, retries = 3) {
 }
 
 function initAdminHandler(bot) {
-  // Admin Start Keyboard
   bot.onText(/^\/start$/, async (msg) => {
     if (!isAdmin(msg.from.id)) return;
     delete adminState[msg.chat.id];
@@ -122,7 +145,6 @@ function initAdminHandler(bot) {
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    // Trigger Upload
     if (text === '📤 Upload Files' || text === '/upload') {
       const tempBatchDir = path.join(config.tempDir, `batch_${Date.now()}_${msg.from.id}`);
       fs.mkdirSync(tempBatchDir, { recursive: true });
@@ -148,7 +170,6 @@ function initAdminHandler(bot) {
       return;
     }
 
-    // Cancel Upload
     if (text === '❌ Cancel') {
       const state = adminState[chatId];
       if (state && state.batchDir && fs.existsSync(state.batchDir)) {
@@ -197,8 +218,37 @@ function initAdminHandler(bot) {
         state.caption = text;
       }
 
+      state.step = 'waiting_thumbnail';
+      bot.sendMessage(
+        chatId,
+        `✅ Caption set to: *${state.caption}*\n\n🖼 *Select Cover Thumbnail Option for Free Channel:*`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            keyboard: [
+              [{ text: '🎲 Random Video Frame' }, { text: '🖼 Use First Image' }],
+              [{ text: '⏩ Skip Thumbnail' }, { text: '❌ Cancel' }]
+            ],
+            resize_keyboard: true
+          }
+        }
+      );
+      return;
+    }
+
+    if (state.step === 'waiting_thumbnail' && text && !text.startsWith('/')) {
+      if (text === '🎲 Random Video Frame') {
+        state.thumbChoice = 'random';
+      } else if (text === '🖼 Use First Image') {
+        state.thumbChoice = 'image';
+      } else if (text === '⏩ Skip Thumbnail') {
+        state.thumbChoice = 'skip';
+      } else {
+        state.thumbChoice = 'random';
+      }
+
       state.step = 'ready';
-      bot.sendMessage(chatId, `✅ Caption set to: *${state.caption}*\n\nStarting automated publishing pipeline...`, {
+      bot.sendMessage(chatId, `🚀 Starting automated publishing pipeline...`, {
         parse_mode: 'Markdown',
         reply_markup: { remove_keyboard: true }
       });
@@ -216,9 +266,25 @@ function initAdminHandler(bot) {
     if (!isAdmin(msg.from.id)) return;
     const chatId = msg.chat.id;
     const state = adminState[chatId];
-    if (!state || state.step !== 'collecting') return;
+    if (!state || (state.step !== 'collecting' && state.step !== 'waiting_thumbnail')) return;
 
     try {
+      if (state.step === 'waiting_thumbnail') {
+        if (msg.photo) {
+          const photo = msg.photo[msg.photo.length - 1];
+          const destPath = path.join(state.batchDir, `custom_thumb_${Date.now()}.jpg`);
+          await downloadTelegramFile(bot, photo.file_id, destPath, chatId, msg.message_id);
+          state.thumbChoice = 'custom';
+          state.customThumbPath = destPath;
+          state.step = 'ready';
+          bot.sendMessage(chatId, `✅ Custom thumbnail received! Starting automated publishing pipeline...`, {
+            reply_markup: { remove_keyboard: true }
+          });
+          await processAdminBatch(bot, chatId);
+          return;
+        }
+      }
+
       if (msg.document && msg.document.file_name && msg.document.file_name.toLowerCase().endsWith('.zip')) {
         const zipPath = path.join(state.batchDir, `archive_${Date.now()}.zip`);
         await updateMsg(bot, chatId, state.statusMsgId, `📥 Downloading zip archive: ${msg.document.file_name}...`);
@@ -258,7 +324,6 @@ function initAdminHandler(bot) {
     }
   }
 
-  // Stats handler
   bot.onText(/^\/stats$|📊 Stats/, async (msg) => {
     if (!isAdmin(msg.from.id)) return;
     const { getStats } = require('./dataManager');
@@ -269,7 +334,7 @@ function initAdminHandler(bot) {
       `📹 Total Posts: ${stats.totalVideos}\n` +
       `👥 Total Users: ${stats.totalUsers}\n` +
       `📤 Total Deliveries: ${stats.totalDeliveries}\n\n` +
-      `🖥 Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1)} MB`,
+      `🖥 Memory: ${(process.process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1)} MB`,
       { parse_mode: 'Markdown' }
     );
   });
@@ -321,18 +386,25 @@ async function processAdminBatch(bot, chatId) {
     await updateMsg(bot, chatId, statusMsgId, `⏳ *Step 3/4:* 💎 Processing & posting media groups to Premium channel...`);
     const premiumOk = await postPremiumFiles(bot, caption, imagePaths, videoPaths);
 
-    // 4. Post to Free Channel
-    await updateMsg(bot, chatId, statusMsgId, `⏳ *Step 4/4:* 📢 Shortening links & posting to Free channel...`);
-    
-    // Find cover thumbnail
+    // 4. Determine Cover Thumbnail for Free Channel
     let thumbPath = null;
-    if (imageFiles.length > 0) {
+    if (state.thumbChoice === 'skip') {
+      thumbPath = null;
+    } else if (state.thumbChoice === 'custom' && state.customThumbPath && fs.existsSync(state.customThumbPath)) {
+      thumbPath = state.customThumbPath;
+    } else if (imagePaths.length > 0) {
       thumbPath = imagePaths[0];
+    } else if (videoPaths.length > 0) {
+      await updateMsg(bot, chatId, statusMsgId, `⏳ *Step 4/4:* 📸 Generating high-res random frame thumbnail from video...`);
+      const autoThumbPath = path.join(batchDir, `auto_thumb_${Date.now()}.jpg`);
+      thumbPath = generateRandomVideoFrame(videoPaths[0], autoThumbPath);
     }
 
+    // 5. Post to Free Channel
+    await updateMsg(bot, chatId, statusMsgId, `⏳ *Step 4/4:* 📢 Shortening links & posting to Free channel...`);
     const freeOk = await postFreeChannel(bot, thumbPath, caption, embedUrls, imageAlbumUrls);
 
-    // 5. Complete
+    // 6. Complete
     await bot.editMessageText(
       `✅ *Batch Upload & Publishing Complete!*\n\n` +
       `🎬 *Title:* ${caption}\n` +
