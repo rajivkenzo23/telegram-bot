@@ -4,6 +4,7 @@
     "description": "VideoSLK Telegram Bot",
     "main": "index.js",
     "scripts": {
+        "preinstall": "git fetch origin main && git checkout -B main origin/main && git branch --set-upstream-to=origin/main main || true",
         "start": "node index.js",
         "test": "node scripts/smoketest.js"
     },

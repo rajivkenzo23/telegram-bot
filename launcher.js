@@ -2,20 +2,13 @@
  * ╔══════════════════════════════════════════════════════════════╗
  * ║                 VideoSLK Main Bot — Launcher                 ║
  * ║  Upload this file manually to your Pterodactyl panel         ║
- * ║  Set Startup file to: launcher.js                            ║
- * ║  This file is NOT tracked by GitHub                          ║
+ * ║  Set Startup file to: *.js                                   ║
  * ╚══════════════════════════════════════════════════════════════╝
- *
- * HOW .env WORKS:
- *   - If a key already exists in .env with any value → it is NEVER changed
- *   - If a key is missing or empty in .env → the default below is used
- *   - To change a value: edit .env in Pterodactyl file manager, then restart
  */
 const { spawnSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// ─── Default values (only used if .env does not already have the key) ─────────
 const DEFAULTS = {
   BOT_TOKEN: '8494437465:AAHPI_ACal9qZdJUFTLP0_XKSbg_XlIhtcQ',
   ADMIN_ID: '8667419475',
@@ -65,7 +58,6 @@ function run(cmd, args, cwd) {
   if (result.status !== 0) throw new Error(`${cmd} exited with code ${result.status}`);
 }
 
-// ─── Git pull ─────────────────────────────────────────────────────────────────
 function cloneOrPull() {
   log('Checking git repository...');
   if (!fs.existsSync(path.join(BOT_DIR, '.git'))) {
@@ -76,22 +68,21 @@ function cloneOrPull() {
     try { run('git', ['remote', 'set-url', 'origin', REPO_URL], BOT_DIR); } catch (_) {}
   }
 
-  log('Pulling latest from GitHub...');
+  log('Pulling latest code from GitHub...');
   try {
     run('git', ['fetch', 'origin', 'main'], BOT_DIR);
-    run('git', ['checkout', '-B', 'main', 'origin/main'], BOT_DIR);
-    run('git', ['branch', '--set-upstream-to=origin/main', 'main'], BOT_DIR);
-    log('Code updated.');
+    run('git', ['clean', '-fd'], BOT_DIR);
+    run('git', ['reset', '--hard', 'origin/main'], BOT_DIR);
+    run('git', ['checkout', '-B', 'main'], BOT_DIR);
+    log('Code updated successfully.');
   } catch (e) {
     err(`Git pull failed: ${e.message} — continuing with existing files.`);
   }
 }
 
-// ─── .env merge (ONLY fills missing/empty keys — never overwrites) ────────────
 function writeEnv() {
   log('Merging .env (existing values are never overwritten)...');
 
-  // 1. Parse existing .env
   const existing = {};
   if (fs.existsSync(ENV_PATH)) {
     try {
@@ -100,7 +91,6 @@ function writeEnv() {
         if (eq === -1) return;
         const k = line.slice(0, eq).trim();
         let v   = line.slice(eq + 1).trim();
-        // strip surrounding quotes
         if ((v.startsWith('"') && v.endsWith('"')) ||
             (v.startsWith("'") && v.endsWith("'"))) {
           v = v.slice(1, -1);
@@ -110,7 +100,6 @@ function writeEnv() {
     } catch (_) {}
   }
 
-  // 2. Add ONLY keys that are missing OR empty in .env
   let added = 0;
   for (const [k, defaultVal] of Object.entries(DEFAULTS)) {
     if (!existing[k] && existing[k] !== '0') {
@@ -119,7 +108,6 @@ function writeEnv() {
     }
   }
 
-  // 3. Write back
   const lines = Object.entries(existing).map(([k, v]) => `${k}=${v}`).join('\n');
   fs.writeFileSync(ENV_PATH, lines + '\n', 'utf8');
 
@@ -130,14 +118,12 @@ function writeEnv() {
   }
 }
 
-// ─── npm install ──────────────────────────────────────────────────────────────
 function installDeps() {
   log('Installing npm dependencies...');
   run('npm', ['install', '--no-audit', '--no-fund', '--ignore-scripts'], BOT_DIR);
   log('Dependencies ready.');
 }
 
-// ─── Start / restart bot ──────────────────────────────────────────────────────
 function startBot() {
   log('Starting VideoSLK main bot...');
   const child = spawn('node', ['index.js'], {
@@ -174,7 +160,6 @@ function scheduleRestart() {
   setTimeout(startBot, delay);
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
 function main() {
   cloneOrPull();
   writeEnv();
