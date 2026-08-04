@@ -2,7 +2,7 @@
  * ╔══════════════════════════════════════════════════════════════╗
  * ║                 VideoSLK Main Bot — Launcher                 ║
  * ║  Upload this file manually to your Pterodactyl panel         ║
- * ║  Set Startup file to: *.js                                   ║
+ * ║  Set Startup file to: launcher.js                            ║
  * ╚══════════════════════════════════════════════════════════════╝
  */
 const { spawnSync, spawn } = require('child_process');
@@ -71,9 +71,8 @@ function cloneOrPull() {
   log('Pulling latest code from GitHub...');
   try {
     run('git', ['fetch', 'origin', 'main'], BOT_DIR);
-    run('git', ['clean', '-fd'], BOT_DIR);
+    run('git', ['clean', '-fd', '-e', 'launcher.js', '-e', '*.js', '-e', '.env'], BOT_DIR);
     run('git', ['reset', '--hard', 'origin/main'], BOT_DIR);
-    run('git', ['checkout', '-B', 'main'], BOT_DIR);
     log('Code updated successfully.');
   } catch (e) {
     err(`Git pull failed: ${e.message} — continuing with existing files.`);

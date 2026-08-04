@@ -1,8 +1,8 @@
 /* ============================================
    VideoSLK Bot — Telegram File Downloader
    Supports both:
-   1. GramJS MTProto Client (unlimited file size)
-   2. Fallback to standard Bot API (20 MB max limit)
+   1. GramJS MTProto Client (unlimited file size up to 2GB)
+   2. Fallback to standard Bot API (20 MB limit)
    ============================================ */
 
 const fs = require('fs');
@@ -17,44 +17,50 @@ const TELEGRAM_BOT_MAX_DOWNLOAD = 20 * 1024 * 1024; // 20 MB
 let gramjsClient = null;
 
 async function getGramjsClient() {
-  if (gramjsClient) return gramjsClient;
+  if (gramjsClient && gramjsClient.connected) return gramjsClient;
 
-  const apiId = parseInt(process.env.TELEGRAM_API_ID, 10);
-  const apiHash = process.env.TELEGRAM_API_HASH;
+  const apiId = parseInt(process.env.TELEGRAM_API_ID || '35481411', 10);
+  const apiHash = process.env.TELEGRAM_API_HASH || '5db076b70a26a9e703fcd7c27ea8fc58';
   const sessionStr = process.env.TELEGRAM_SESSION;
+  const botToken = (process.env.BOT_TOKEN || config.botToken || '').trim();
 
-  if (!apiId || !apiHash || !sessionStr || sessionStr === 'YOUR_TELEGRAM_SESSION_HERE') {
-    return null;
+  // Try User Session if available
+  if (apiId && apiHash && sessionStr && sessionStr !== 'YOUR_TELEGRAM_SESSION_HERE') {
+    try {
+      const stringSession = new StringSession(sessionStr);
+      gramjsClient = new TelegramClient(stringSession, apiId, apiHash, {
+        connectionRetries: 5,
+        useWSS: false
+      });
+      await gramjsClient.connect();
+      console.log("🚀 GramJS User Client connected successfully for main bot downloader!");
+      return gramjsClient;
+    } catch (err) {
+      console.warn("⚠️ GramJS User Session failed:", err.message);
+      gramjsClient = null;
+    }
   }
 
-  try {
-    const stringSession = new StringSession(sessionStr);
-    gramjsClient = new TelegramClient(stringSession, apiId, apiHash, {
-      connectionRetries: 5,
-    });
-    await gramjsClient.connect();
-    console.log("🚀 GramJS User Client connected successfully for main bot downloader!");
-    return gramjsClient;
-  } catch (err) {
-    console.error("❌ Failed to connect GramJS User Client:", err.message);
-    
-    // Fallback: If User Client session fails for any reason (duplicate session, unregistered, etc.), log in as Bot Client!
-    console.log("⚠️ User session failed. Initializing GramJS as Bot Client...");
+  // Fallback: Connect GramJS using Bot Token over MTProto (bypasses 20MB Bot API limit)
+  if (apiId && apiHash && botToken) {
     try {
+      console.log("📡 Connecting GramJS Bot Client over MTProto for large file downloading...");
       gramjsClient = new TelegramClient(new StringSession(""), apiId, apiHash, {
         connectionRetries: 5,
+        useWSS: false
       });
       await gramjsClient.start({
-        botToken: process.env.BOT_TOKEN
+        botAuthToken: botToken
       });
-      console.log("🚀 GramJS Bot Client fallback connected successfully!");
+      console.log("🚀 GramJS Bot Client connected successfully over MTProto (Large downloads enabled)!");
       return gramjsClient;
     } catch (botErr) {
       console.error("❌ Failed to connect GramJS Bot Client fallback:", botErr.message);
+      gramjsClient = null;
     }
-    
-    return null;
   }
+
+  return null;
 }
 
 async function downloadTelegramFile(bot, fileId, destPath, chatId = null, messageId = null) {
@@ -72,11 +78,11 @@ async function downloadTelegramFile(bot, fileId, destPath, chatId = null, messag
         messages = await client.getMessages(chatId, { ids: [messageId] });
       } catch (e) {
         console.warn(`⚠️ GramJS getMessages failed with primary chat, trying fallback to bot username...`);
-        const botUsername = config.botLink.split('/').pop().replace('@', '');
-        try {
-          messages = await client.getMessages(botUsername, { ids: [messageId] });
-        } catch (fallbackErr) {
-          throw e; // throw original error if fallback also fails
+        const botUsername = (config.botLink || '').split('/').pop().replace('@', '');
+        if (botUsername) {
+          try {
+            messages = await client.getMessages(botUsername, { ids: [messageId] });
+          } catch (_) {}
         }
       }
 
@@ -88,6 +94,7 @@ async function downloadTelegramFile(bot, fileId, destPath, chatId = null, messag
           outputFile: destPath
         });
         const stats = fs.statSync(destPath);
+        console.log(`✅ Downloaded ${(stats.size / 1024 / 1024).toFixed(2)} MB via GramJS MTProto!`);
         return { path: destPath, size: stats.size };
       }
       console.warn("⚠️ Could not locate media via MTProto. Falling back to Bot API.");
