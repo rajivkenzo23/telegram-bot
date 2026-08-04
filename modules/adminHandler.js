@@ -152,12 +152,13 @@ function initAdminHandler(bot) {
       adminState[chatId] = {
         step: 'collecting',
         batchDir: tempBatchDir,
+        activeDownloads: 0,
         statusMsgId: null
       };
 
       const m = await bot.sendMessage(
         chatId,
-        "📥 *Send your videos, images, or .zip archive.*\n\nOnce all files are uploaded, click *Done Uploading*.",
+        "📥 *Send your videos, images, or .zip archive.*\n\nOnce all files finish downloading, click *Done Uploading*.",
         {
           parse_mode: 'Markdown',
           reply_markup: {
@@ -185,6 +186,15 @@ function initAdminHandler(bot) {
 
     if (text === '✅ Done Uploading') {
       if (state.step !== 'collecting') return;
+
+      if (state.activeDownloads && state.activeDownloads > 0) {
+        bot.sendMessage(
+          chatId,
+          `⏳ *Still downloading ${state.activeDownloads} file(s)...*\n\nPlease wait a moment for downloads to finish, then click *Done Uploading* again.`,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
 
       const videoFiles = sortedFiles(state.batchDir, VIDEO_EXTENSIONS);
       const imageFiles = sortedFiles(state.batchDir, IMAGE_EXTENSIONS);
@@ -268,6 +278,7 @@ function initAdminHandler(bot) {
     const state = adminState[chatId];
     if (!state || (state.step !== 'collecting' && state.step !== 'waiting_thumbnail')) return;
 
+    state.activeDownloads = (state.activeDownloads || 0) + 1;
     try {
       if (state.step === 'waiting_thumbnail') {
         if (msg.photo) {
@@ -295,10 +306,12 @@ function initAdminHandler(bot) {
       } else if (msg.video) {
         const fileName = msg.video.file_name || `video_${Date.now()}.mp4`;
         const destPath = path.join(state.batchDir, fileName);
+        await updateMsg(bot, chatId, state.statusMsgId, `📥 Downloading video: ${fileName}...`);
         await downloadTelegramFile(bot, msg.video.file_id, destPath, chatId, msg.message_id);
       } else if (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/')) {
         const fileName = msg.document.file_name || `video_${Date.now()}.mp4`;
         const destPath = path.join(state.batchDir, fileName);
+        await updateMsg(bot, chatId, state.statusMsgId, `📥 Downloading video document: ${fileName}...`);
         await downloadTelegramFile(bot, msg.document.file_id, destPath, chatId, msg.message_id);
       } else if (msg.photo) {
         const photo = msg.photo[msg.photo.length - 1];
@@ -321,6 +334,8 @@ function initAdminHandler(bot) {
       );
     } catch (err) {
       console.error(`Media collection error: ${err.message}`);
+    } finally {
+      state.activeDownloads = Math.max(0, (state.activeDownloads || 1) - 1);
     }
   }
 
@@ -334,7 +349,7 @@ function initAdminHandler(bot) {
       `📹 Total Posts: ${stats.totalVideos}\n` +
       `👥 Total Users: ${stats.totalUsers}\n` +
       `📤 Total Deliveries: ${stats.totalDeliveries}\n\n` +
-      `🖥 Memory: ${(process.process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1)} MB`,
+      `🖥 Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1)} MB`,
       { parse_mode: 'Markdown' }
     );
   });
