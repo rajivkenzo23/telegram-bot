@@ -3,18 +3,29 @@ const dns = require('dns');
 if (typeof dns.setDefaultResultOrder === 'function') {
   dns.setDefaultResultOrder('ipv4first');
 }
+const fs = require('fs');
+const path = require('path');
+const { exec, execSync } = require('child_process');
+
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+// Auto-repair Git tracking branch for Pterodactyl environments
+try {
+  if (fs.existsSync(path.join(__dirname, '.git'))) {
+    execSync('git fetch origin main', { stdio: 'ignore' });
+    execSync('git checkout -B main origin/main', { stdio: 'ignore' });
+    execSync('git branch --set-upstream-to=origin/main main', { stdio: 'ignore' });
+  }
+} catch (_) {}
+
 const TelegramBotModule = require('node-telegram-bot-api');
 const TelegramBot = typeof TelegramBotModule === 'function'
   ? TelegramBotModule
   : (TelegramBotModule.default || TelegramBotModule.TelegramBot || TelegramBotModule);
+
 const { config, validateConfig } = require('./config');
 const { initAdminHandler } = require('./modules/adminHandler');
 const { initUserHandler } = require('./modules/userHandler');
-const fs = require('fs');
-const path = require('path');
-const { exec } = require('child_process');
-
-require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 validateConfig();
 
@@ -62,9 +73,6 @@ if (!fs.existsSync(dataPath)) {
 }
 
 // ===== FFmpeg setup =====
-// Prefer the bundled ffmpeg-static binary if installed (works in restricted
-// Docker images like Pterodactyl yolks:nodejs_20 which don't ship ffmpeg).
-// Falls back to system ffmpeg from PATH.
 let ffmpegSource = 'system';
 let ffmpegBinPath = 'ffmpeg';
 try {
@@ -74,34 +82,17 @@ try {
     ffmpegBinPath = staticPath;
     ffmpegSource = 'bundled (ffmpeg-static)';
   }
-} catch (e) {
-  // ffmpeg-static not installed — keep system fallback
-}
+} catch (e) {}
 
 exec(`"${ffmpegBinPath}" -version`, (err, stdout) => {
   if (err) {
     console.log(`⚠️  FFmpeg not usable (${ffmpegSource}) — preview generation will be skipped`);
-    console.log(`   Fix on Pterodactyl: add "ffmpeg-static" to NODE_PACKAGES and restart.`);
   } else {
     console.log(`✅ FFmpeg ${ffmpegSource}: ${stdout.split('\n')[0]}`);
   }
 });
 
-let _channelPoster = null;
-
-async function postToFreeChannel(bot, localThumbPath, caption, embedUrls, localPreviewPath) {
-  if (!_channelPoster) _channelPoster = require('./modules/channelPoster');
-  // Use the multi-channel broadcaster — falls back to single-channel if no channels.json
-  return await _channelPoster.broadcastToFreeChannels(bot, {
-    localThumbPath,
-    caption,
-    embedUrls,
-    localPreviewPath
-  });
-}
-
-const { processVideo } = require('./modules/videoProcessor');
-initAdminHandler(bot, processVideo);
+initAdminHandler(bot);
 initUserHandler(bot);
 
 if (!config.siteUrl) {
@@ -111,18 +102,6 @@ if (!config.siteUrl) {
   initRetentionSystem(bot);
 } catch (e) {
   console.log('⚠️  Retention system not loaded');
-}
-
-// Periodic stats snapshot → assets/data/stats.json on GitHub (admin dashboard reads it)
-if (!config.legacySitePublish) {
-  console.log('Legacy GitHub/site publishing disabled');
-} else try {
-  const { startPeriodic } = require('./modules/statsPublisher');
-  const { uploadFile } = require('./modules/githubUploader');
-  startPeriodic(uploadFile, 5 * 60 * 1000);
-  console.log('📊 Stats publisher started (every 5 min)');
-} catch (e) {
-  console.log('⚠️  Stats publisher not started:', e.message);
 }
 
 setInterval(() => {
